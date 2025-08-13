@@ -1,3 +1,8 @@
+pub mod api;
+
+#[allow(clippy::all)]
+mod generated_bridge;
+
 mod keyboard;
 /// cbindgen:ignore
 pub mod platform;

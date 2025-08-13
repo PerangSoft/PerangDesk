@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
+  <img src="../res/logo-header.svg" alt="PerangDesk - Your remote desktop"><br>
   <a href="#free-public-servers">Servers</a> •
   <a href="#raw-steps-to-build">Build</a> •
   <a href="#how-to-build-with-docker">Docker</a> •
@@ -19,7 +19,7 @@ Merupakan perangkat lunak Remote Desktop yang baru, dan dibangun dengan Rust. Ba
 
 ![image](https://user-images.githubusercontent.com/71636191/171661982-430285f0-2e12-4b1d-9957-4a58e375304d.png)
 
-RustDesk mengajak semua orang untuk ikut berkontribusi. Lihat [`docs/CONTRIBUTING-ID.md`](CONTRIBUTING-ID.md) untuk melihat panduan.
+PerangDesk mengajak semua orang untuk ikut berkontribusi. Lihat [`docs/CONTRIBUTING-ID.md`](CONTRIBUTING-ID.md) untuk melihat panduan.
 
 [**FAQ**](https://github.com/rustdesk/rustdesk/wiki/FAQ)
 
@@ -107,7 +107,7 @@ cd
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source $HOME/.cargo/env
 git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
+cd perangdesk
 mkdir -p target/debug
 wget https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so
 mv libsciter-gtk.so target/debug
@@ -120,29 +120,29 @@ Mulailah dengan melakukan kloning (clone) repositori dan build dengan docker con
 
 ```sh
 git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
-docker build -t "rustdesk-builder" .
+cd perangdesk
+docker build -t "perangdesk-builder" .
 ```
 
 Selanjutnya, setiap kali ketika kamu akan melakukan build aplikasi, jalankan perintah berikut:
 
 ```sh
-docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user/.cargo/git -v rustdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" rustdesk-builder
+docker run --rm -it -v $PWD:/home/user/perangdesk -v perangdesk-git-cache:/home/user/.cargo/git -v perangdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" perangdesk-builder
 ```
 
 Perlu diingat bahwa pada saat build pertama kali, mungkin memerlukan waktu lebih lama sebelum dependensi di-cache, build berikutnya akan lebih cepat. Selain itu, jika perlu menentukan argumen yang berbeda untuk perintah build, kamu dapat melakukannya di akhir perintah di posisi `<OPTIONAL-ARGS>`. Misalnya, jika ingin membangun versi rilis yang dioptimalkan, jalankan perintah di atas dan tambahkan `--release`. Hasil eksekusi perintah tersebut akan tersimpan pada target folder di sistem kamu, dan dapat dijalankan dengan:
 
 ```sh
-target/debug/rustdesk
+target/debug/perangdesk
 ```
 
 Atau, jika kamu menjalankan rilis yang dapat dieksekusi:
 
 ```sh
-target/release/rustdesk
+target/release/perangdesk
 ```
 
-Harap pastikan bahwa kamu menjalankan perintah ini dari repositori root RustDesk, jika tidak demikian, aplikasi mungkin tidak dapat menemukan sumber yang diperlukan. Dan juga, perintah cargo seperti `install` atau `run` saat ini tidak didukung melalui metode ini karena, proses menginstal atau menjalankan program terjadi di dalam container bukan pada host.
+Harap pastikan bahwa kamu menjalankan perintah ini dari repositori root PerangDesk, jika tidak demikian, aplikasi mungkin tidak dapat menemukan sumber yang diperlukan. Dan juga, perintah cargo seperti `install` atau `run` saat ini tidak didukung melalui metode ini karena, proses menginstal atau menjalankan program terjadi di dalam container bukan pada host.
 
 ## Struktur File
 

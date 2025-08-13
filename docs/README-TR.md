@@ -1,6 +1,6 @@
 
 <p align="center">
-  <img src="../res/logo-header.svg" alt="RustDesk - Uzak masaüstü uygulamanız"><br>
+  <img src="../res/logo-header.svg" alt="PerangDesk - Uzak masaüstü uygulamanız"><br>
   <a href="#free-public-servers">Sunucular</a> •
   <a href="#raw-steps-to-build">Derleme</a> •
   <a href="#how-to-build-with-docker">Docker ile Derleme</a> •
@@ -18,7 +18,7 @@ Başka bir uzak masaüstü yazılımı daha, Rust dilinde yazılmış. Hemen kul
 
 ![image](https://user-images.githubusercontent.com/71636191/171661982-430285f0-2e12-4b1d-9957-4a58e375304d.png)
 
-RustDesk, herkesten katkıyı kabul eder. Başlamak için [CONTRIBUTING.md](CONTRIBUTING-TR.md) belgesine göz atın.
+PerangDesk, herkesten katkıyı kabul eder. Başlamak için [CONTRIBUTING.md](CONTRIBUTING-TR.md) belgesine göz atın.
 
 [**SSS**](https://github.com/rustdesk/rustdesk/wiki/FAQ)
 
@@ -114,7 +114,7 @@ cd
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source $HOME/.cargo/env
 git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
+cd perangdesk
 mkdir -p target/debug
 wget https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so
 mv libsciter-gtk.so target/debug
@@ -127,14 +127,14 @@ VCPKG_ROOT=$HOME/vcpkg cargo run
 
 ```sh
 git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
-docker build -t "rustdesk-builder" .
+cd perangdesk
+docker build -t "perangdesk-builder" .
 ```
 
 Ardından, uygulamayı derlemek için her seferinde aşağıdaki komutu çalıştırın:
 
 ```sh
-docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user/.cargo/git -v rustdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" rustdesk-builder
+docker run --rm -it -v $PWD:/home/user/perangdesk -v perangdesk-git-cache:/home/user/.cargo/git -v perangdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" perangdesk-builder
 ```
 
 İlk derleme, bağımlılıklar önbelleğe alınmadan önce daha uzun sürebilir, sonraki derlemeler daha hızlı olacaktır. Ayrıca, derleme komutuna isteğe bağlı argümanlar belirtmeniz gerekiyorsa, bunu
@@ -142,16 +142,16 @@ docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user
  komutun sonunda `<İSTEĞE BAĞLI-ARGÜMANLAR>` pozisyonunda yapabilirsiniz. Örneğin, optimize edilmiş bir sürümü derlemek isterseniz, yukarıdaki komutu çalıştırdıktan sonra `--release` ekleyebilirsiniz. Oluşan yürütülebilir dosya sisteminizdeki hedef klasöründe bulunacak ve şu komutla çalıştırılabilir:
 
 ```sh
-target/debug/rustdesk
+target/debug/perangdesk
 ```
 
 Veya, yayın yürütülebilir dosyası çalıştırılıyorsa:
 
 ```sh
-target/release/rustdesk
+target/release/perangdesk
 ```
 
-Lütfen bu komutları RustDesk deposunun kökünden çalıştırdığınızdan emin olun, aksi takdirde uygulama gereken kaynakları bulamayabilir. Ayrıca, `install` veya `run` gibi diğer cargo altkomutları şu anda bu yöntem aracılığıyla desteklenmemektedir, çünkü bunlar programı konteyner içinde kurar veya çalıştırır ve ana makinede değil.
+Lütfen bu komutları PerangDesk deposunun kökünden çalıştırdığınızdan emin olun, aksi takdirde uygulama gereken kaynakları bulamayabilir. Ayrıca, `install` veya `run` gibi diğer cargo altkomutları şu anda bu yöntem aracılığıyla desteklenmemektedir, çünkü bunlar programı konteyner içinde kurar veya çalıştırır ve ana makinede değil.
  
 ## Dosya Yapısı
 
@@ -168,7 +168,7 @@ Lütfen bu komutları RustDesk deposunun kökünden çalıştırdığınızdan e
 
 > [!Dikkat]
 > **Yanlış Kullanım Uyarısı:** <br>
-> RustDesk geliştiricileri, bu yazılımın etik olmayan veya yasa dışı kullanımını onaylamaz veya desteklemez. Yetkisiz erişim, kontrol veya gizlilik ihlali gibi kötüye kullanımlar kesinlikle yönergelerimize aykırıdır. Yazarlar, uygulamanın herhangi bir yanlış kullanımından sorumlu değildir.
+> PerangDesk geliştiricileri, bu yazılımın etik olmayan veya yasa dışı kullanımını onaylamaz veya desteklemez. Yetkisiz erişim, kontrol veya gizlilik ihlali gibi kötüye kullanımlar kesinlikle yönergelerimize aykırıdır. Yazarlar, uygulamanın herhangi bir yanlış kullanımından sorumlu değildir.
 
 ## Ekran Görüntüleri
 

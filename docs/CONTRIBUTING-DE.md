@@ -1,11 +1,11 @@
-# Beiträge zu RustDesk
+# Beiträge zu PerangDesk
 
-RustDesk begrüßt Beiträge von jedem. Hier sind die Richtlinien, wenn Sie uns
+PerangDesk begrüßt Beiträge von jedem. Hier sind die Richtlinien, wenn Sie uns
 helfen möchten:
 
 ## Beiträge
 
-Beiträge zu RustDesk oder seinen Abhängigkeiten sollten in Form von Pull
+Beiträge zu PerangDesk oder seinen Abhängigkeiten sollten in Form von Pull
 Requests auf GitHub erfolgen. Jeder Pull Request wird von einem Hauptakteur
 (jemand mit der Erlaubnis, Korrekturen einzubringen) geprüft und entweder in den
 Hauptbaum eingefügt oder Feedback für notwendige Änderungen gegeben. Alle
@@ -34,7 +34,7 @@ werden, dass Beiträge zum gleichen Thema doppelt bearbeitet werden.
 - Wenn Ihr Patch nicht begutachtet wird oder Sie eine bestimmte Person zur
   Begutachtung benötigen, können Sie einem Gutachter mit @ antworten und um eine
   Begutachtung des Pull Requests oder einen Kommentar bitten. Sie können auch
-  per [E-Mail](mailto:info@rustdesk.com) um eine Begutachtung bitten.
+  per [E-Mail](mailto:info@perangdesk.com) um eine Begutachtung bitten.
 
 - Fügen Sie Tests hinzu, die sich auf den behobenen Fehler oder die neue
   Funktion beziehen.

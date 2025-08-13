@@ -540,7 +540,7 @@ pub fn handle_client_event(id: &str, peer: &str, event: &[u8]) -> Message {
                 msg
             } else {
                 let (code, msg) = ret.get_code_msg(id);
-                if code > ERR_RUSTDESK_HANDLE_BASE && code < ERR_PLUGIN_HANDLE_BASE {
+                if code > ERR_PERANGDESK_HANDLE_BASE && code < ERR_PLUGIN_HANDLE_BASE {
                     log::debug!(
                         "Plugin {} failed to handle client event, code: {}, msg: {}",
                         id,

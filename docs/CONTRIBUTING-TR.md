@@ -1,10 +1,10 @@
-# RustDesk'a Katkı Sağlamak
+# PerangDesk'a Katkı Sağlamak
 
-RustDesk, herkesten katkıyı memnuniyetle karşılar. Eğer bize yardımcı olmayı düşünüyorsanız, işte rehberlik eden kurallar:
+PerangDesk, herkesten katkıyı memnuniyetle karşılar. Eğer bize yardımcı olmayı düşünüyorsanız, işte rehberlik eden kurallar:
 
 ## Katkılar
 
-RustDesk veya bağımlılıklarına yapılan katkılar, GitHub pull istekleri şeklinde yapılmalıdır. Her bir pull isteği, çekirdek katkıcı tarafından gözden geçirilecek (yamaları kabul etme izni olan biri) ve ana ağaca kabul edilecek veya gerekli değişiklikler için geri bildirim verilecektir. Tüm katkılar bu formata uymalıdır, çekirdek katkıcılardan gelenler bile.
+PerangDesk veya bağımlılıklarına yapılan katkılar, GitHub pull istekleri şeklinde yapılmalıdır. Her bir pull isteği, çekirdek katkıcı tarafından gözden geçirilecek (yamaları kabul etme izni olan biri) ve ana ağaca kabul edilecek veya gerekli değişiklikler için geri bildirim verilecektir. Tüm katkılar bu formata uymalıdır, çekirdek katkıcılardan gelenler bile.
 
 Eğer bir konu üzerinde çalışmak isterseniz, önce üzerinde çalışmak istediğinizi belirten bir yorum yaparak konuyu talep ediniz. Bu, katkı sağlayanların aynı konuda çift çalışmasını engellemek içindir.
 
@@ -16,7 +16,7 @@ Eğer bir konu üzerinde çalışmak isterseniz, önce üzerinde çalışmak ist
 
 - Commit'ler, bir Geliştirici Sertifikası ile desteklenmelidir (http://developercertificate.org). Bu, [proje lisansının](../LICENCE) koşullarına uymayı kabul ettiğinizi gösteren bir onaydır. Git'te bunu `git commit` seçeneği olarak `-s` seçeneği ile yapabilirsiniz.
 
-- Yamalarınız gözden geçirilmiyorsa veya belirli bir kişinin gözden geçirmesine ihtiyacınız varsa, çekme isteği veya yorum içinde bir gözden geçirmeyi istemek için bir inceleyiciyi @etiketleyebilir veya inceleme için [e-posta](mailto:info@rustdesk.com) ile talep edebilirsiniz.
+- Yamalarınız gözden geçirilmiyorsa veya belirli bir kişinin gözden geçirmesine ihtiyacınız varsa, çekme isteği veya yorum içinde bir gözden geçirmeyi istemek için bir inceleyiciyi @etiketleyebilir veya inceleme için [e-posta](mailto:info@perangdesk.com) ile talep edebilirsiniz.
 
 - Düzelttiğiniz hatanın veya eklediğiniz yeni özelliğin ilgili testlerini ekleyin.
 

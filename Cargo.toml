@@ -1,11 +1,11 @@
 [package]
-name = "rustdesk"
+name = "perangdesk"
 version = "1.4.1"
-authors = ["rustdesk <info@rustdesk.com>"]
+authors = ["perangdesk <info@perangdesk.com>"]
 edition = "2021"
 build= "build.rs"
-description = "RustDesk Remote Desktop"
-default-run = "rustdesk"
+description = "PerangDesk Remote Desktop"
+default-run = "perangdesk"
 rust-version = "1.75"
 
 [lib]
@@ -41,6 +41,7 @@ unix-file-copy-paste = [
     "clipboard/unix-file-copy-paste",
 ]
 screencapturekit = ["cpal/screencapturekit"]
+flutter_rust_bridge = ["dep:flutter_rust_bridge"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -68,7 +69,7 @@ num_cpus = "1.15"
 bytes = { version = "1.4", features = ["serde"] }
 default-net = "0.14"
 wol-rs = "1.0"
-flutter_rust_bridge = { version = "=1.80", features = ["uuid"], optional = true}
+flutter_rust_bridge = { version = "=2.11.1", features = ["uuid"], optional = true }
 errno = "0.3"
 rdev = { git = "https://github.com/rustdesk-org/rdev" }
 url = { version = "2.3", features = ["serde"] }
@@ -192,10 +193,10 @@ members = ["libs/scrap", "libs/hbb_common", "libs/enigo", "libs/clipboard", "lib
 exclude = ["vdi/host", "examples/custom_plugin"]
 
 [package.metadata.winres]
-LegalCopyright = "Copyright © 2025 Purslane Ltd. All rights reserved."
-ProductName = "RustDesk"
-FileDescription = "RustDesk Remote Desktop"
-OriginalFilename = "rustdesk.exe"
+LegalCopyright = "Copyright © 2025 Perang Rayaneh Ltd. All rights reserved."
+ProductName = "PerangDesk"
+FileDescription = "PerangDesk Remote Desktop"
+OriginalFilename = "perangdesk.exe"
 
 [target.'cfg(target_os="windows")'.build-dependencies]
 winres = "0.1"
@@ -211,8 +212,8 @@ hound = "3.5"
 docopt = "1.1"
 
 [package.metadata.bundle]
-name = "RustDesk"
-identifier = "com.carriez.rustdesk"
+name = "PerangDesk"
+identifier = "com.carriez.perangdesk"
 icon = ["res/32x32.png", "res/128x128.png", "res/128x128@2x.png"]
 osx_minimum_system_version = "10.14"
 

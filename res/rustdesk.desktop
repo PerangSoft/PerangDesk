@@ -1,19 +1,19 @@
 [Desktop Entry]
-Name=RustDesk
+Name=PerangDesk
 GenericName=Remote Desktop
 Comment=Remote Desktop
-Exec=rustdesk %u
-Icon=rustdesk
+Exec=perangdesk %u
+Icon=perangdesk
 Terminal=false
 Type=Application
 StartupNotify=true
 Categories=Network;RemoteAccess;GTK;
 Keywords=internet;
 Actions=new-window;
-StartupWMClass=rustdesk
+StartupWMClass=perangdesk
 
 X-Desktop-File-Install-Version=0.23
 
 [Desktop Action new-window]
 Name=Open a New Window
-Exec=rustdesk %u
+Exec=perangdesk %u

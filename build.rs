@@ -81,6 +81,11 @@ fn install_android_deps() {
 }
 
 fn main() {
+	println!("cargo:rustc-env=ID_SERVER=perangdesk.perang.co");
+	println!("cargo:rustc-env=RELAY_SERVER=perangdesk.perang.co");
+	println!("cargo:rustc-env=API_SERVER=perangdesk.perang.co");
+	println!("cargo:rustc-env=KEY=kb6llzCGqT09a4iOnFUOFAydAzPHdtOHcwoBaR15Czg=");
+
     hbb_common::gen_version();
     install_android_deps();
     #[cfg(all(windows, feature = "inline"))]

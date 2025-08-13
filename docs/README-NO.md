@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
+  <img src="res/logo-header.svg" alt="PerangDesk - Your remote desktop"><br>
   <a href="#public-servers">Servere</a> •
   <a href="#raw-steps-to-build">Build</a> •
   <a href="#how-to-build-with-docker">Docker</a> •
@@ -17,7 +17,7 @@ Enda en annen fjernstyrt desktop programvare, skrevet i Rust. Virker rett ut av 
 
 ![image](https://user-images.githubusercontent.com/71636191/171661982-430285f0-2e12-4b1d-9957-4a58e375304d.png)
 
-RustDesk er velkommen for bidrag fra alle. Se [CONTRIBUTING.md](CONTRIBUTING-NO.md) for hjelp med oppstart.
+PerangDesk er velkommen for bidrag fra alle. Se [CONTRIBUTING.md](CONTRIBUTING-NO.md) for hjelp med oppstart.
 
 [**FAQ**](https://github.com/rustdesk/rustdesk/wiki/FAQ)
 
@@ -114,7 +114,7 @@ cd
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source $HOME/.cargo/env
 git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
+cd perangdesk
 mkdir -p target/debug
 wget https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so
 mv libsciter-gtk.so target/debug
@@ -127,29 +127,29 @@ Start med å klone repositoret og bygg Docker konteineren:
 
 ```sh
 git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
-docker build -t "rustdesk-builder" .
+cd perangdesk
+docker build -t "perangdesk-builder" .
 ```
 
 Deretter, hver gang du trenger å bygge applikasjonen, kjør følgene kommando:
 
 ```sh
-docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user/.cargo/git -v rustdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" rustdesk-builder
+docker run --rm -it -v $PWD:/home/user/perangdesk -v perangdesk-git-cache:/home/user/.cargo/git -v perangdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" perangdesk-builder
 ```
 
 Det kan ta lengere tid før avhengighetene blir bufret første gang du bygger, senere bygg er raskere. Hvis du trenger å spesifisere forkjellige argumenter til bygge kommandoen, kan du gjøre det på slutten av kommandoen ved `<OPTIONAL-ARGS>` feltet. For eksempel, hvis du ville bygge en optimalisert release versjon, ville du kjørt kommandoen over fulgt `--release`. Den kjørbare filen vill være tilgjengelig i mål direktive på ditt system, og kan bli kjørt med:
 
 ```sh
-target/debug/rustdesk
+target/debug/perangdesk
 ```
 
 Eller, hvis du kjører ett release program:
 
 ```sh
-target/release/rustdesk
+target/release/perangdesk
 ```
 
-Venligst pass på att du kjører disse kommandoene fra roten av RustDesk repositoret, eller kan det hende att applikasjon ikke finner de riktige ressursene. Pass også på att andre cargo subkommandoer som for eksempel `install` eller `run` ikke støttes med denne metoden da de vill installere eller kjøre programmet i konteineren istedet for verten.
+Venligst pass på att du kjører disse kommandoene fra roten av PerangDesk repositoret, eller kan det hende att applikasjon ikke finner de riktige ressursene. Pass også på att andre cargo subkommandoer som for eksempel `install` eller `run` ikke støttes med denne metoden da de vill installere eller kjøre programmet i konteineren istedet for verten.
 
 ## Fil Struktur
 

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
+  <img src="../res/logo-header.svg" alt="PerangDesk - Your remote desktop"><br>
   <a href="#raw-steps-to-build">빌드</a> •
   <a href="#how-to-build-with-docker">Docker</a> •
   <a href="#file-structure">구조</a> •
@@ -10,7 +10,7 @@
 
 > [!Caution]
 > **오용 면책 조항:** <br>
-> RustDesk의 개발자는 이 소프트웨어의 비윤리적 또는 불법적인 사용을 묵인하거나 지원하지 않습니다. 무단 액세스, 제어 또는 개인정보 침해와 같은 오용은 엄격하게 당사의 지침에 위배됩니다. 작성자는 응용 프로그램의 오용에 대해 책임을 지지 않습니다.
+> PerangDesk의 개발자는 이 소프트웨어의 비윤리적 또는 불법적인 사용을 묵인하거나 지원하지 않습니다. 무단 액세스, 제어 또는 개인정보 침해와 같은 오용은 엄격하게 당사의 지침에 위배됩니다. 작성자는 응용 프로그램의 오용에 대해 책임을 지지 않습니다.
 
 
 우리와 채팅: [Discord](https://discord.gg/nDceKgxnkV) | [Twitter](https://twitter.com/rustdesk) | [Reddit](https://www.reddit.com/r/rustdesk) | [YouTube](https://www.youtube.com/@rustdesk)
@@ -21,7 +21,7 @@ Rust로 작성된 또 다른 원격 데스크톱 소프트웨어입니다. 구�
 
 ![image](https://user-images.githubusercontent.com/71636191/171661982-430285f0-2e12-4b1d-9957-4a58e375304d.png)
 
-RustDesk는 모든 분들의 기여를 환영합니다. 시작하는 데 도움이 필요하면 [CONTRIBUTING-KR.md](CONTRIBUTING-KR.md)를 참조하세요.
+PerangDesk는 모든 분들의 기여를 환영합니다. 시작하는 데 도움이 필요하면 [CONTRIBUTING-KR.md](CONTRIBUTING-KR.md)를 참조하세요.
 
 [**자주 묻는 질문**](https://github.com/rustdesk/rustdesk/wiki/FAQ)
 
@@ -118,7 +118,7 @@ cd
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source $HOME/.cargo/env
 git clone --recurse-submodules https://github.com/rustdesk/rustdesk
-cd rustdesk
+cd perangdesk
 mkdir -p target/debug
 wget https://raw.githubusercontent.com/c-smile/sciter-sdk/master/bin.lnx/x64/libsciter-gtk.so
 mv libsciter-gtk.so target/debug
@@ -131,30 +131,30 @@ VCPKG_ROOT=$HOME/vcpkg cargo run
 
 ```sh
 git clone https://github.com/rustdesk/rustdesk
-cd rustdesk
+cd perangdesk
 git submodule update --init --recursive
-docker build -t "rustdesk-builder" .
+docker build -t "perangdesk-builder" .
 ```
 
 그런 다음 응용 프로그램을 빌드해야 할 때마다 다음 명령을 실행합니다:
 
 ```sh
-docker run --rm -it -v $PWD:/home/user/rustdesk -v rustdesk-git-cache:/home/user/.cargo/git -v rustdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" rustdesk-builder
+docker run --rm -it -v $PWD:/home/user/perangdesk -v perangdesk-git-cache:/home/user/.cargo/git -v perangdesk-registry-cache:/home/user/.cargo/registry -e PUID="$(id -u)" -e PGID="$(id -g)" perangdesk-builder
 ```
 
 첫 번째 빌드는 종속성이 캐시되기까지 시간이 오래 걸릴 수 있으며, 이후 빌드는 더 빨라집니다. 또한 빌드 명령에 다른 인수를 지정해야 하는 경우 명령 끝의 `<OPTIONAL-ARGS>` 위치에 인수를 지정할 수 있습니다. 예를 들어 최적화된 릴리스 버전을 빌드하려면 위의 명령 뒤에 `--release`를 추가하면 됩니다. 결과 실행 파일은 시스템의 대상 폴더에서 사용할 수 있으며 실행할 수 있습니다::
 
 ```sh
-target/debug/rustdesk
+target/debug/perangdesk
 ```
 
 또는 릴리스 실행 파일을 실행하는 경우:
 
 ```sh
-target/release/rustdesk
+target/release/perangdesk
 ```
 
-RustDesk 리포지토리의 루트에서 이러한 명령을 실행하고 있는지 확인하세요. 그렇지 않으면 응용 프로그램이 필요한 리소스를 찾지 못할 수 있습니다. 또한 `install` 또는 `run` 과 같은 다른 cargo 하위 명령은 호스트가 아닌 컨테이너 내부에 프로그램을 설치하거나 실행하므로 현재 이 방법을 통해 지원되지 않는다는 점에 유의하세요.
+PerangDesk 리포지토리의 루트에서 이러한 명령을 실행하고 있는지 확인하세요. 그렇지 않으면 응용 프로그램이 필요한 리소스를 찾지 못할 수 있습니다. 또한 `install` 또는 `run` 과 같은 다른 cargo 하위 명령은 호스트가 아닌 컨테이너 내부에 프로그램을 설치하거나 실행하므로 현재 이 방법을 통해 지원되지 않는다는 점에 유의하세요.
 
 ## 파일 구조
 

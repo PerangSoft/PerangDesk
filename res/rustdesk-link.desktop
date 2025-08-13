@@ -1,11 +1,11 @@
 [Desktop Entry]
-Name=RustDeskURL Scheme Handler
+Name=PerangDeskURL Scheme Handler
 NoDisplay=true
-MimeType=x-scheme-handler/rustdesk;
-TryExec=rustdesk
-Exec=rustdesk %u
-Icon=rustdesk
+MimeType=x-scheme-handler/perangdesk;
+TryExec=perangdesk
+Exec=perangdesk %u
+Icon=perangdesk
 Terminal=false
 Type=Application
 StartupNotify=false
-StartupWMClass=rustdesk
+StartupWMClass=perangdesk

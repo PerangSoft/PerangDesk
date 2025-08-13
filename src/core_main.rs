@@ -252,7 +252,7 @@ pub fn core_main() -> Option<Vec<String>> {
                 #[cfg(windows)]
                 if crate::virtual_display_manager::is_virtual_display_supported() {
                     hbb_common::allow_err!(
-                        crate::virtual_display_manager::rustdesk_idd::install_update_driver()
+                        crate::virtual_display_manager::perangdesk_idd::install_update_driver()
                     );
                 }
                 return None;
@@ -576,7 +576,7 @@ pub fn core_main() -> Option<Vec<String>> {
             }
             return None;
         } else if args[0] == "-gtk-sudo" {
-            // rustdesk service kill `rustdesk --` processes
+            // perangdesk service kill `perangdesk --` processes
             #[cfg(target_os = "linux")]
             if args.len() > 2 {
                 crate::platform::gtk_sudo::exec();

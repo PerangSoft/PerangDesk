@@ -50,13 +50,13 @@ dependencies = [
 
 [[package]]
 name = "allo-isolate"
-version = "0.1.25"
+version = "0.1.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97b6d794345b06592d0ebeed8e477e41b71e5a0a49df4fc0e4184d5938b99509"
+checksum = "449e356a4864c017286dbbec0e12767ea07efba29e3b7d984194c2a7ff3c4550"
 dependencies = [
  "anyhow",
  "atomic",
- "chrono",
+ "backtrace",
  "uuid",
 ]
 
@@ -114,9 +114,9 @@ dependencies = [
 
 [[package]]
 name = "android_log-sys"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ecc8056bf6ab9892dcd53216c83d1597487d7dacac16c8df6b877d127df9937"
+checksum = "84521a3cf562bc62942e294181d9eef17eb38ceb8c68677bc49f144e4c3d4f8d"
 
 [[package]]
 name = "android_logger"
@@ -128,6 +128,17 @@ dependencies = [
  "env_logger 0.10.2",
  "log",
  "once_cell",
+]
+
+[[package]]
+name = "android_logger"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbb4e440d04be07da1f1bf44fb4495ebd58669372fe0cffa6e48595ac5bd88a3"
+dependencies = [
+ "android_log-sys",
+ "env_filter",
+ "log",
 ]
 
 [[package]]
@@ -1740,6 +1751,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "delegate-attr"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51aac4c99b2e6775164b412ea33ae8441b2fde2dbf05a20bc0052a63d08c475b"
+dependencies = [
+ "proc-macro2 1.0.93",
+ "quote 1.0.36",
+ "syn 2.0.98",
+]
+
+[[package]]
 name = "deranged"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2295,35 +2317,46 @@ dependencies = [
 
 [[package]]
 name = "flutter_rust_bridge"
-version = "1.80.1"
+version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd0305ebc9f097d9826530a55fc2acd63222e912c663f7adce3ab641ecc0f346"
+checksum = "dde126295b2acc5f0a712e265e91b6fdc0ed38767496483e592ae7134db83725"
 dependencies = [
  "allo-isolate",
+ "android_logger 0.15.1",
  "anyhow",
  "build-target",
  "bytemuck",
- "cc",
- "chrono",
+ "byteorder",
  "console_error_panic_hook",
  "dart-sys",
+ "delegate-attr",
  "flutter_rust_bridge_macros",
+ "futures",
  "js-sys",
  "lazy_static",
- "libc",
  "log",
- "parking_lot",
+ "oslog",
+ "portable-atomic",
  "threadpool",
+ "tokio",
  "uuid",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 
 [[package]]
 name = "flutter_rust_bridge_macros"
-version = "1.82.6"
+version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7fe743d921bedf4578b9472346d03a9643a01cd565ca7df7961baebad534ba5"
+checksum = "d5f0420326b13675321b194928bb7830043b68cf8b810e1c651285c747abb080"
+dependencies = [
+ "hex",
+ "md-5",
+ "proc-macro2 1.0.93",
+ "quote 1.0.36",
+ "syn 2.0.98",
+]
 
 [[package]]
 name = "fnv"
@@ -4000,6 +4033,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "md-5"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf"
+dependencies = [
+ "cfg-if 1.0.0",
+ "digest",
+]
+
+[[package]]
 name = "md5"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4930,6 +4973,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "oslog"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "80d2043d1f61d77cb2f4b1f7b7b2295f40507f5f8e9d1c8bf10a1ca5f97a3969"
+dependencies = [
+ "cc",
+ "dashmap 5.5.3",
+ "log",
+]
+
+[[package]]
 name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5077,6 +5131,124 @@ name = "peeking_take_while"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
+
+[[package]]
+name = "perangdesk"
+version = "1.4.1"
+dependencies = [
+ "android-wakelock",
+ "android_logger 0.13.3",
+ "arboard",
+ "async-process",
+ "async-trait",
+ "bytes",
+ "cc",
+ "cfg-if 1.0.0",
+ "chrono",
+ "cidr-utils",
+ "clap 4.5.8",
+ "clipboard",
+ "clipboard-master",
+ "cocoa 0.24.1",
+ "core-foundation 0.9.4",
+ "core-graphics 0.22.3",
+ "cpal",
+ "crossbeam-queue",
+ "ctrlc",
+ "dasp",
+ "dbus",
+ "dbus-crossroads",
+ "default-net",
+ "dispatch",
+ "docopt",
+ "enigo",
+ "errno",
+ "evdev",
+ "flutter_rust_bridge",
+ "fon",
+ "fruitbasket",
+ "gtk",
+ "hbb_common",
+ "hex",
+ "hound",
+ "image 0.24.9",
+ "impersonate_system",
+ "include_dir",
+ "jni",
+ "kcp-sys",
+ "keepawake",
+ "lazy_static",
+ "libloading 0.8.4",
+ "libpulse-binding",
+ "libpulse-simple-binding",
+ "mac_address",
+ "magnum-opus",
+ "nix 0.29.0",
+ "num_cpus",
+ "objc",
+ "objc_id",
+ "once_cell",
+ "os-version",
+ "pam",
+ "parity-tokio-ipc",
+ "percent-encoding",
+ "portable-pty",
+ "qrcode-generator",
+ "rdev",
+ "remote_printer",
+ "repng",
+ "reqwest",
+ "ringbuf",
+ "rpassword 7.3.1",
+ "rubato",
+ "runas",
+ "rust-pulsectl",
+ "samplerate",
+ "sciter-rs",
+ "scrap",
+ "serde 1.0.203",
+ "serde_derive",
+ "serde_json 1.0.118",
+ "serde_repr",
+ "sha2",
+ "shared_memory",
+ "shutdown_hooks",
+ "stunclient",
+ "sys-locale",
+ "system_shutdown",
+ "tao",
+ "tauri-winrt-notification",
+ "terminfo",
+ "termios 0.3.3",
+ "totp-rs",
+ "tray-icon",
+ "url",
+ "users 0.11.0",
+ "uuid",
+ "virtual_display",
+ "wallpaper",
+ "winapi 0.3.9",
+ "windows 0.61.1",
+ "windows-service",
+ "winreg 0.11.0",
+ "winres",
+ "wol-rs",
+ "x11-clipboard 0.8.1",
+ "x11rb 0.12.0",
+ "zip",
+]
+
+[[package]]
+name = "perangdesk-portable-packer"
+version = "1.4.1"
+dependencies = [
+ "brotli",
+ "dirs 5.0.1",
+ "md5",
+ "native-windows-gui",
+ "winapi 0.3.9",
+ "winres",
+]
 
 [[package]]
 name = "percent-encoding"
@@ -5276,6 +5448,12 @@ dependencies = [
  "tracing",
  "windows-sys 0.52.0",
 ]
+
+[[package]]
+name = "portable-atomic"
+version = "1.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f84267b20a16ea918e43c6a88433c2d54fa145c92a811b5b047ccbe153674483"
 
 [[package]]
 name = "portable-pty"
@@ -6109,124 +6287,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustdesk"
-version = "1.4.1"
-dependencies = [
- "android-wakelock",
- "android_logger",
- "arboard",
- "async-process",
- "async-trait",
- "bytes",
- "cc",
- "cfg-if 1.0.0",
- "chrono",
- "cidr-utils",
- "clap 4.5.8",
- "clipboard",
- "clipboard-master",
- "cocoa 0.24.1",
- "core-foundation 0.9.4",
- "core-graphics 0.22.3",
- "cpal",
- "crossbeam-queue",
- "ctrlc",
- "dasp",
- "dbus",
- "dbus-crossroads",
- "default-net",
- "dispatch",
- "docopt",
- "enigo",
- "errno",
- "evdev",
- "flutter_rust_bridge",
- "fon",
- "fruitbasket",
- "gtk",
- "hbb_common",
- "hex",
- "hound",
- "image 0.24.9",
- "impersonate_system",
- "include_dir",
- "jni",
- "kcp-sys",
- "keepawake",
- "lazy_static",
- "libloading 0.8.4",
- "libpulse-binding",
- "libpulse-simple-binding",
- "mac_address",
- "magnum-opus",
- "nix 0.29.0",
- "num_cpus",
- "objc",
- "objc_id",
- "once_cell",
- "os-version",
- "pam",
- "parity-tokio-ipc",
- "percent-encoding",
- "portable-pty",
- "qrcode-generator",
- "rdev",
- "remote_printer",
- "repng",
- "reqwest",
- "ringbuf",
- "rpassword 7.3.1",
- "rubato",
- "runas",
- "rust-pulsectl",
- "samplerate",
- "sciter-rs",
- "scrap",
- "serde 1.0.203",
- "serde_derive",
- "serde_json 1.0.118",
- "serde_repr",
- "sha2",
- "shared_memory",
- "shutdown_hooks",
- "stunclient",
- "sys-locale",
- "system_shutdown",
- "tao",
- "tauri-winrt-notification",
- "terminfo",
- "termios 0.3.3",
- "totp-rs",
- "tray-icon",
- "url",
- "users 0.11.0",
- "uuid",
- "virtual_display",
- "wallpaper",
- "winapi 0.3.9",
- "windows 0.61.1",
- "windows-service",
- "winreg 0.11.0",
- "winres",
- "wol-rs",
- "x11-clipboard 0.8.1",
- "x11rb 0.12.0",
- "zip",
-]
-
-[[package]]
-name = "rustdesk-portable-packer"
-version = "1.4.1"
-dependencies = [
- "brotli",
- "dirs 5.0.1",
- "md5",
- "native-windows-gui",
- "winapi 0.3.9",
- "winres",
-]
-
-[[package]]
 name = "rustfft"
 version = "6.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6417,7 +6477,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 name = "scrap"
 version = "0.5.0"
 dependencies = [
- "android_logger",
+ "android_logger 0.13.3",
  "bindgen 0.65.1",
  "block",
  "cfg-if 1.0.0",

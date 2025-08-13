@@ -1,0 +1,5 @@
+rust_root: .
+rust_input: crate::api
+dart_output: flutter/lib/generated_bridge.dart
+rust_output: src/generated_bridge.rs
+add_mod_to_lib: false

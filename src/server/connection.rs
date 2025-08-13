@@ -197,8 +197,8 @@ pub struct Connection {
     server: super::ServerPtrWeak,
     hash: Hash,
     read_jobs: Vec<fs::TransferJob>,
-    timer: crate::RustDeskInterval,
-    file_timer: crate::RustDeskInterval,
+    timer: crate::PerangDeskInterval,
+    file_timer: crate::PerangDeskInterval,
     file_transfer: Option<(String, bool)>,
     view_camera: bool,
     terminal: bool,
@@ -371,8 +371,8 @@ impl Connection {
             server,
             hash,
             read_jobs: Vec::new(),
-            timer: crate::rustdesk_interval(time::interval(SEC30)),
-            file_timer: crate::rustdesk_interval(time::interval(SEC30)),
+            timer: crate::perangdesk_interval(time::interval(SEC30)),
+            file_timer: crate::perangdesk_interval(time::interval(SEC30)),
             file_transfer: None,
             view_camera: false,
             terminal: false,
@@ -480,7 +480,7 @@ impl Connection {
             conn.send_permission(Permission::BlockInput, false).await;
         }
         let mut test_delay_timer =
-            crate::rustdesk_interval(time::interval_at(Instant::now(), TEST_DELAY_TIMEOUT));
+            crate::perangdesk_interval(time::interval_at(Instant::now(), TEST_DELAY_TIMEOUT));
         let mut last_recv_time = Instant::now();
 
         conn.stream.set_send_timeout(
@@ -493,7 +493,7 @@ impl Connection {
 
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         std::thread::spawn(move || Self::handle_input(_rx_input, tx_cloned));
-        let mut second_timer = crate::rustdesk_interval(time::interval(Duration::from_secs(1)));
+        let mut second_timer = crate::perangdesk_interval(time::interval(Duration::from_secs(1)));
 
         #[cfg(feature = "unix-file-copy-paste")]
         let rx_clip_holder;
@@ -726,7 +726,7 @@ impl Connection {
                             }
                         }
                     } else {
-                        conn.file_timer = crate::rustdesk_interval(time::interval_at(Instant::now() + SEC30, SEC30));
+                        conn.file_timer = crate::perangdesk_interval(time::interval_at(Instant::now() + SEC30, SEC30));
                     }
                 }
                 Ok(conns) = hbbs_rx.recv() => {
@@ -2616,7 +2616,7 @@ impl Connection {
                                         let job_type = job.r#type;
                                         self.read_jobs.push(job);
                                         self.file_timer =
-                                            crate::rustdesk_interval(time::interval(MILLI1));
+                                            crate::perangdesk_interval(time::interval(MILLI1));
                                         self.post_file_audit(
                                             FileAuditType::RemoteSend,
                                             if job_type == fs::JobType::Printer {
@@ -2634,7 +2634,7 @@ impl Connection {
                             Some(file_action::Union::Receive(r)) => {
                                 // client to server
                                 // note: 1.1.10 introduced identical file detection, which breaks original logic of send/recv files
-                                // whenever got send/recv request, check peer version to ensure old version of rustdesk
+                                // whenever got send/recv request, check peer version to ensure old version of perangdesk
                                 let od = can_enable_overwrite_detection(get_version_number(
                                     &self.lr.version,
                                 ));
@@ -3306,7 +3306,7 @@ impl Connection {
                     let name = display.name();
                     #[cfg(windows)]
                     if let Some(_ok) =
-                        virtual_display_manager::rustdesk_idd::change_resolution_if_is_virtual_display(
+                        virtual_display_manager::perangdesk_idd::change_resolution_if_is_virtual_display(
                             &name,
                             r.width as _,
                             r.height as _,
@@ -3970,7 +3970,7 @@ impl Connection {
     #[cfg(all(target_os = "windows", feature = "flutter"))]
     async fn send_printer_request(&mut self, data: Vec<u8>) {
         // This path is only used to identify the printer job.
-        let path = format!("RustDesk://FsJob//Printer/{}", get_time());
+        let path = format!("PerangDesk://FsJob//Printer/{}", get_time());
 
         let msg = fs::new_send(0, fs::JobType::Printer, path.clone(), 1, false);
         self.send(msg).await;

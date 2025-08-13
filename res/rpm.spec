@@ -1,10 +1,10 @@
-Name:       rustdesk
+Name:       perangdesk
 Version:    1.4.1
 Release:    0
 Summary:    RPM package
 License:    GPL-3.0
 URL:        https://rustdesk.com
-Vendor:     rustdesk <info@rustdesk.com>
+Vendor:     perangdesk <info@perangdesk.com>
 Requires:   gtk3 libxcb libxdo libXfixes alsa-lib libva2 pam gstreamer1-plugins-base
 Recommends: libayatana-appindicator-gtk3
 
@@ -27,22 +27,22 @@ mkdir -p %{buildroot}/usr/share/rustdesk/
 mkdir -p %{buildroot}/usr/share/rustdesk/files/
 mkdir -p %{buildroot}/usr/share/icons/hicolor/256x256/apps/
 mkdir -p %{buildroot}/usr/share/icons/hicolor/scalable/apps/
-install -m 755 $HBB/target/release/rustdesk %{buildroot}/usr/bin/rustdesk
+install -m 755 $HBB/target/release/perangdesk %{buildroot}/usr/bin/perangdesk
 install $HBB/libsciter-gtk.so %{buildroot}/usr/share/rustdesk/libsciter-gtk.so
-install $HBB/res/rustdesk.service %{buildroot}/usr/share/rustdesk/files/
-install $HBB/res/128x128@2x.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/rustdesk.png
-install $HBB/res/scalable.svg %{buildroot}/usr/share/icons/hicolor/scalable/apps/rustdesk.svg
-install $HBB/res/rustdesk.desktop %{buildroot}/usr/share/rustdesk/files/
-install $HBB/res/rustdesk-link.desktop %{buildroot}/usr/share/rustdesk/files/
+install $HBB/res/perangdesk.service %{buildroot}/usr/share/rustdesk/files/
+install $HBB/res/128x128@2x.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/perangdesk.png
+install $HBB/res/scalable.svg %{buildroot}/usr/share/icons/hicolor/scalable/apps/perangdesk.svg
+install $HBB/res/perangdesk.desktop %{buildroot}/usr/share/rustdesk/files/
+install $HBB/res/perangdesk-link.desktop %{buildroot}/usr/share/rustdesk/files/
 
 %files
-/usr/bin/rustdesk
+/usr/bin/perangdesk
 /usr/share/rustdesk/libsciter-gtk.so
-/usr/share/rustdesk/files/rustdesk.service
-/usr/share/icons/hicolor/256x256/apps/rustdesk.png
-/usr/share/icons/hicolor/scalable/apps/rustdesk.svg
-/usr/share/rustdesk/files/rustdesk.desktop
-/usr/share/rustdesk/files/rustdesk-link.desktop
+/usr/share/rustdesk/files/perangdesk.service
+/usr/share/icons/hicolor/256x256/apps/perangdesk.png
+/usr/share/icons/hicolor/scalable/apps/perangdesk.svg
+/usr/share/rustdesk/files/perangdesk.desktop
+/usr/share/rustdesk/files/perangdesk-link.desktop
 /usr/share/rustdesk/files/__pycache__/*
 
 %changelog
@@ -56,26 +56,26 @@ case "$1" in
   ;;
   2)
     # for upgrade
-    systemctl stop rustdesk || true
+    systemctl stop perangdesk || true
   ;;
 esac
 
 %post
-cp /usr/share/rustdesk/files/rustdesk.service /etc/systemd/system/rustdesk.service
-cp /usr/share/rustdesk/files/rustdesk.desktop /usr/share/applications/
-cp /usr/share/rustdesk/files/rustdesk-link.desktop /usr/share/applications/
+cp /usr/share/rustdesk/files/perangdesk.service /etc/systemd/system/perangdesk.service
+cp /usr/share/rustdesk/files/perangdesk.desktop /usr/share/applications/
+cp /usr/share/rustdesk/files/perangdesk-link.desktop /usr/share/applications/
 systemctl daemon-reload
-systemctl enable rustdesk
-systemctl start rustdesk
+systemctl enable perangdesk
+systemctl start perangdesk
 update-desktop-database
 
 %preun
 case "$1" in
   0)
     # for uninstall
-    systemctl stop rustdesk || true
-    systemctl disable rustdesk || true
-    rm /etc/systemd/system/rustdesk.service || true
+    systemctl stop perangdesk || true
+    systemctl disable perangdesk || true
+    rm /etc/systemd/system/perangdesk.service || true
   ;;
   1)
     # for upgrade
@@ -86,8 +86,8 @@ esac
 case "$1" in
   0)
     # for uninstall
-    rm /usr/share/applications/rustdesk.desktop || true
-    rm /usr/share/applications/rustdesk-link.desktop || true
+    rm /usr/share/applications/perangdesk.desktop || true
+    rm /usr/share/applications/perangdesk-link.desktop || true
     update-desktop-database
   ;;
   1)

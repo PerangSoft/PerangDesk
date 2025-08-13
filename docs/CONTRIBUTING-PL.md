@@ -1,10 +1,10 @@
-# Współtworzenie RustDesk
+# Współtworzenie PerangDesk
 
-RustDesk z zadowoleniem przyjmuje wkład od każdego. Oto wytyczne, jeśli chcesz nam pomóc:
+PerangDesk z zadowoleniem przyjmuje wkład od każdego. Oto wytyczne, jeśli chcesz nam pomóc:
 
 ## Współtwórcy
 
-Contributions to RustDesk or its dependencies should be made in the form of GitHub
+Contributions to PerangDesk or its dependencies should be made in the form of GitHub
 pull requests. Each pull request will be reviewed by a core contributor
 (someone with permission to land patches) and either landed in the main tree or
 given feedback for changes that would be required. All contributions should
@@ -30,7 +30,7 @@ efforts from contributors on the same issue.
 
 - If your patch is not getting reviewed or you need a specific person to review
   it, you can @-reply a reviewer asking for a review in the pull request or a
-  comment, or you can ask for a review via [email](mailto:info@rustdesk.com).
+  comment, or you can ask for a review via [email](mailto:info@perangdesk.com).
 
 - Add tests relevant to the fixed bug or new feature.
 

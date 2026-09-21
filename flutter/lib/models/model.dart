@@ -2900,6 +2900,7 @@ class CursorData {
   // At most 4 MiB of RGBA, including Linux's square cursor padding.
   static const _maxRasterSize = 1024;
 
+  final String peerId;
   final String id;
   final img2.Image image;
   double scale;
@@ -2918,6 +2919,7 @@ class CursorData {
   int get rasterHeight => _rasterHeight;
 
   CursorData({
+    required this.peerId,
     required this.id,
     required this.image,
     required this.scale,
@@ -3028,8 +3030,8 @@ class CursorData {
     scale = _checkUpdateScale(scale);
     // The raster and its hotspot depend on the scale only through these two
     // sizes, so one native registration serves every scale that rounds to them.
-    // The model prefixes its own scope (see CursorModel.registrationKey).
-    return '${id}_${rasterWidth}_$rasterHeight';
+    // The model prefixes the session (see CursorModel.registrationKey).
+    return '${peerId}_${id}_${rasterWidth}_$rasterHeight';
   }
 }
 
@@ -3095,6 +3097,7 @@ class PredefinedCursor {
         }
 
         _cache = CursorData(
+          peerId: '',
           id: id,
           image: _image2!.clone(),
           scale: scale,
@@ -3136,11 +3139,11 @@ class CursorModel with ChangeNotifier {
   String peerId = '';
   WeakReference<FFI> parent;
 
-  // Native cursor registrations are process-wide and a peer can be open in
-  // more than one tab, so a key names the session, not just the peer: a tab
-  // evicting or clearing a shape would otherwise delete the registration a
-  // sibling tab still lists as its own and never registers again.
-  String get _keyScope => '${peerId}_${parent.target?.sessionId ?? ''}';
+  // Native cursor registrations are shared by the tabs of a window and a peer
+  // can be open in more than one of them, so a key names the session as well
+  // as the peer: a tab evicting or clearing a shape would otherwise delete the
+  // registration a sibling tab still lists as its own and never registers again.
+  String get _keyScope => '${parent.target?.sessionId ?? ''}';
   String registrationKey(CursorData cache, double scale) =>
       '${_keyScope}_${cache.updateGetKey(scale)}';
 
@@ -3537,35 +3540,31 @@ class CursorModel with ChangeNotifier {
 
   updateCursorData(Map<String, dynamic> evt) async {
     try {
-      await _decodeCursorData(evt);
+      final id = evt['id'];
+      final hotx = double.parse(evt['hotx']);
+      final hoty = double.parse(evt['hoty']);
+      final width = int.parse(evt['width']);
+      final height = int.parse(evt['height']);
+      List<dynamic> colors = json.decode(evt['colors']);
+      final rgba = Uint8List.fromList(colors.map((s) => s as int).toList());
+      final image = await img.decodeImageFromPixels(
+          rgba, width, height, ui.PixelFormat.rgba8888);
+      if (image == null) {
+        return;
+      }
+      if (await _updateCache(rgba, image, id, hotx, hoty, width, height)) {
+        _images[id]?.item1.dispose();
+        _images[id] = Tuple3(image, hotx, hoty);
+      }
+
+      // Update last cursor data.
+      // Do not use the previous `image` and `id`, because `_id` may be changed.
+      _updateCurData();
     } finally {
       // Decoded or not, the shape can be asked for again, and only now: more
       // cursor_id events for it can be handled while the decode is running.
       _requested.remove(evt['id']);
     }
-  }
-
-  _decodeCursorData(Map<String, dynamic> evt) async {
-    final id = evt['id'];
-    final hotx = double.parse(evt['hotx']);
-    final hoty = double.parse(evt['hoty']);
-    final width = int.parse(evt['width']);
-    final height = int.parse(evt['height']);
-    List<dynamic> colors = json.decode(evt['colors']);
-    final rgba = Uint8List.fromList(colors.map((s) => s as int).toList());
-    final image = await img.decodeImageFromPixels(
-        rgba, width, height, ui.PixelFormat.rgba8888);
-    if (image == null) {
-      return;
-    }
-    if (await _updateCache(rgba, image, id, hotx, hoty, width, height)) {
-      _images[id]?.item1.dispose();
-      _images[id] = Tuple3(image, hotx, hoty);
-    }
-
-    // Update last cursor data.
-    // Do not use the previous `image` and `id`, because `_id` may be changed.
-    _updateCurData();
   }
 
   Future<bool> _updateCache(
@@ -3602,6 +3601,7 @@ class CursorModel with ChangeNotifier {
       }
     }
     final cache = CursorData(
+      peerId: peerId,
       id: id,
       image: imgOrigin,
       scale: 1.0,
@@ -3682,7 +3682,7 @@ class CursorModel with ChangeNotifier {
       _cache = null;
       shown = true;
     }
-    final prefix = '${_keyScope}_${id}_';
+    final prefix = '${_keyScope}_${peerId}_${id}_';
     for (final k in _cacheKeys.where((k) => k.startsWith(prefix)).toList()) {
       _cacheKeys.remove(k);
       deleteCustomCursor(k);

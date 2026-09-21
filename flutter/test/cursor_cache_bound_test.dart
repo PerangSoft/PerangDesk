@@ -284,7 +284,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     final keys = cursor.cachedKeys.toList();
     expect(keys.length, 2);
-    expect(keys.every((k) => k.startsWith('peer_${ffi.sessionId}_0_')), isTrue);
+    expect(keys.every((k) => k.startsWith('${ffi.sessionId}_peer_0_')), isTrue);
     for (var i = 1; i <= _max; i++) {
       await _feed(ffi, i);
     }

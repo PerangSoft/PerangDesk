@@ -141,16 +141,20 @@ impl CursorArchive {
 
     fn insert(&mut self, cd: CursorData) {
         let cost = cd.colors.len() + Self::ENTRY_BYTES;
-        if self.bytes + cost > Self::MAX_BYTES {
+        let replaced = self
+            .shapes
+            .get(&cd.id)
+            .map_or(0, |old| old.colors.len() + Self::ENTRY_BYTES);
+        if self.bytes - replaced + cost > Self::MAX_BYTES {
             // A new map rather than clear(), so the buckets go too.
             self.shapes = Default::default();
             self.bytes = 0;
+        } else {
+            self.bytes -= replaced;
         }
         self.last_id = cd.id;
         self.bytes += cost;
-        if let Some(old) = self.shapes.insert(cd.id, cd) {
-            self.bytes -= old.colors.len() + Self::ENTRY_BYTES;
-        }
+        self.shapes.insert(cd.id, cd);
     }
 }
 
@@ -237,6 +241,21 @@ mod cursor_archive_tests {
         twice.insert(archived(1, 40));
         assert_eq!(twice.bytes, once.bytes);
         assert_eq!(twice.last_id, 1, "the newest shape is the current one");
+    }
+
+    #[test]
+    fn a_smaller_replacement_leaves_the_other_shapes_alone() {
+        let mut archive = CursorArchive::default();
+        archive.insert(archived(1, CursorArchive::MAX_BYTES / 2));
+        archive.insert(archived(2, CursorArchive::MAX_BYTES / 2 - 4096));
+        assert_eq!(archive.shapes.len(), 2, "both fit");
+
+        archive.insert(archived(1, CursorArchive::MAX_BYTES / 4));
+        assert_eq!(
+            archive.shapes.len(),
+            2,
+            "shape 2 was dropped for room the replacement did not need"
+        );
     }
 }
 

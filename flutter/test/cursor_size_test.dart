@@ -154,6 +154,7 @@ CursorData _data((int, int) size, {Offset hotspot = Offset.zero}) {
   }
   image.getPixel(0, 0).setRgba(255, 0, 0, 128);
   return CursorData(
+      peerId: 'size',
       id: '$size',
       image: image,
       scale: 1,

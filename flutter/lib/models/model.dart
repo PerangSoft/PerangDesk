@@ -1683,6 +1683,9 @@ class FfiModel with ChangeNotifier {
     final list = cachedPeerData.cursorDataList;
     list.removeWhere((e) => e['id'] == id);
     list.add(evt);
+    // A replay ends by selecting this again, and a new shape is the shape in
+    // use just as a cursor_id is.
+    cachedPeerData.lastCursorId = {'id': id};
     // The web core has no compressed copy to fetch an evicted shape from.
     if (!isWeb) {
       var chars =
@@ -2930,8 +2933,6 @@ class CursorData {
         hotx = hotxOrigin * scale,
         hoty = hotyOrigin * scale;
 
-  int _doubleToInt(double v) => (v * 10e6).round().toInt();
-
   double _limitScale(double requestedScale) {
     final valid = requestedScale.isFinite && requestedScale > 0;
     // Invalid requests retain the last valid raster and hotspot.
@@ -3027,7 +3028,9 @@ class CursorData {
 
   String updateGetKey(double scale) {
     scale = _checkUpdateScale(scale);
-    return '${peerId}_${id}_${_doubleToInt(width * scale)}_${_doubleToInt(height * scale)}_${rasterWidth}_$rasterHeight';
+    // The raster and its hotspot depend on the scale only through these two
+    // sizes, so one native registration serves every scale that rounds to them.
+    return '${peerId}_${id}_${rasterWidth}_$rasterHeight';
   }
 }
 
@@ -3624,41 +3627,63 @@ class CursorModel with ChangeNotifier {
     if (!_updateCurData()) {
       debugPrint(
           'WARNING: updateCursorId $_id, cache is ${_cache == null ? "null" : "not null"}. without notifyListeners()');
+      // The web core keeps no compressed copy, so there is nothing to ask for.
+      if (isWeb) {
+        return;
+      }
       // Ask once: the shape comes back as a cursor_data event, and further
-      // cursor_id events for it can be handled before that one is decoded.
+      // cursor_id events for it can be handled before that one is decoded. Ids
+      // the peer never backs with a shape would pile up here, so start over at
+      // the same count the shapes themselves are held to.
+      if (_requested.length >= CachedPeerData.kMaxCursorDataCount) {
+        _requested.clear();
+      }
       if (_requested.add(_id)) {
         requestCursorData(_id);
       }
     }
   }
 
-  // The shape arrives again as a normal `cursor_data` event. The web core keeps
-  // no compressed copy, so nothing is evicted there and nothing is requested.
+  // The shape arrives again as a normal `cursor_data` event.
   requestCursorData(String id) {
     final sessionId = parent.target?.sessionId;
-    if (!isWeb && sessionId != null) {
+    if (sessionId != null) {
       bind.sessionRequestCursorData(sessionId: sessionId, id: id);
     }
   }
 
   removeCursor(String id) {
+    var shown = false;
     final image = _images.remove(id)?.item1;
     if (image != null) {
       // `_image` only advances when `_updateCurData()` finds an image, so it can
       // still be the one disposed here; painting it would then throw.
       if (identical(_image, image)) {
         _image = null;
+        shown = true;
       }
       image.dispose();
     }
     final cache = _cacheMap.remove(id);
-    if (cache == null) {
-      return;
+    // Left in place, the page would register the evicted raster natively again.
+    if (_cache?.id == id) {
+      _cache = null;
+      shown = true;
     }
-    final prefix = '${cache.peerId}_${cache.id}_';
-    for (final k in _cacheKeys.where((k) => k.startsWith(prefix)).toList()) {
-      _cacheKeys.remove(k);
-      deleteCustomCursor(k);
+    if (cache != null) {
+      final prefix = '${cache.peerId}_${cache.id}_';
+      for (final k in _cacheKeys.where((k) => k.startsWith(prefix)).toList()) {
+        _cacheKeys.remove(k);
+        deleteCustomCursor(k);
+      }
+    }
+    if (shown) {
+      try {
+        // A painter built from the old image or raster has to be rebuilt.
+        notifyListeners();
+      } catch (e) {
+        debugPrint('WARNING: removeCursor $id, without notifyListeners(). $e');
+      }
     }
   }
 

@@ -103,7 +103,7 @@ pub struct Remote<T: InvokeUiSession> {
 // The peer sends each cursor shape once and afterwards only its id, so a shape the Flutter UI
 // has evicted has to be recoverable here. Shapes are kept compressed, as received. The Sciter UI
 // keeps every shape itself, so it has no use for this.
-#[cfg(feature = "flutter")]
+#[cfg(any(feature = "flutter", test))]
 #[derive(Default)]
 struct CursorArchive {
     shapes: HashMap<u64, CursorData>,
@@ -112,7 +112,7 @@ struct CursorArchive {
     last_id: u64,
 }
 
-#[cfg(feature = "flutter")]
+#[cfg(any(feature = "flutter", test))]
 impl CursorArchive {
     // A session's shapes are a few hundred bytes each, so this is out of reach of any honest
     // peer. Past it the map is dropped whole, as the server does with its own cursor cache: a
@@ -123,16 +123,118 @@ impl CursorArchive {
     // one-pixel shapes is held to the same budget as one streaming full-size ones.
     const ENTRY_BYTES: usize = 256;
 
+    // The cursor fields alone: a message can also carry unknown fields of any size, which the
+    // budget would not see.
+    fn shape(cd: &CursorData) -> CursorData {
+        CursorData {
+            id: cd.id,
+            hotx: cd.hotx,
+            hoty: cd.hoty,
+            width: cd.width,
+            height: cd.height,
+            colors: cd.colors.clone(),
+            ..Default::default()
+        }
+    }
+
     fn insert(&mut self, cd: CursorData) {
-        if self.bytes > Self::MAX_BYTES {
-            self.shapes.clear();
+        let cost = cd.colors.len() + Self::ENTRY_BYTES;
+        if self.bytes + cost > Self::MAX_BYTES {
+            // A new map rather than clear(), so the buckets go too.
+            self.shapes = Default::default();
             self.bytes = 0;
         }
         self.last_id = cd.id;
-        self.bytes += cd.colors.len() + Self::ENTRY_BYTES;
+        self.bytes += cost;
         if let Some(old) = self.shapes.insert(cd.id, cd) {
             self.bytes -= old.colors.len() + Self::ENTRY_BYTES;
         }
+    }
+}
+
+#[cfg(test)]
+mod cursor_archive_tests {
+    use super::*;
+
+    fn archived(id: u64, bytes: usize) -> CursorData {
+        CursorData {
+            id,
+            colors: vec![0; bytes].into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn an_archived_shape_keeps_only_the_cursor_fields() {
+        let mut cd = archived(1, 8);
+        cd.hotx = 3;
+        cd.special_fields
+            .mut_unknown_fields()
+            .add_length_delimited(9999, vec![0; 4096]);
+        let shape = CursorArchive::shape(&cd);
+        assert_eq!((shape.id, shape.hotx, shape.colors.len()), (1, 3, 8));
+        assert!(
+            shape
+                .special_fields
+                .unknown_fields()
+                .iter()
+                .next()
+                .is_none(),
+            "unknown fields would escape the byte budget"
+        );
+    }
+
+    #[test]
+    fn a_cursor_archive_never_holds_more_than_its_budget() {
+        let mut archive = CursorArchive::default();
+        for id in 0..64 {
+            archive.insert(archived(id, CursorArchive::MAX_BYTES / 3));
+            assert!(
+                archive.bytes <= CursorArchive::MAX_BYTES,
+                "after shape {id}"
+            );
+        }
+        assert!(
+            !archive.shapes.is_empty(),
+            "the newest shape is always kept"
+        );
+    }
+
+    #[test]
+    fn a_cursor_archive_past_its_budget_starts_over() {
+        let mut archive = CursorArchive::default();
+        archive.insert(archived(1, CursorArchive::MAX_BYTES / 2));
+        archive.insert(archived(2, 1));
+        assert_eq!(archive.shapes.len(), 2, "dropped while still within budget");
+
+        archive.insert(archived(3, CursorArchive::MAX_BYTES / 2));
+        assert_eq!(archive.shapes.keys().collect::<Vec<_>>(), vec![&3]);
+    }
+
+    #[test]
+    fn a_stream_of_pixelless_cursors_is_bounded_too() {
+        let mut archive = CursorArchive::default();
+        let most = CursorArchive::MAX_BYTES / CursorArchive::ENTRY_BYTES;
+        for id in 0..=(most as u64 + 1) {
+            archive.insert(archived(id, 0));
+        }
+        assert!(
+            archive.shapes.len() <= most,
+            "kept {} shapes that carry no pixels",
+            archive.shapes.len()
+        );
+    }
+
+    #[test]
+    fn a_replaced_cursor_is_not_counted_twice() {
+        let mut once = CursorArchive::default();
+        once.insert(archived(1, 40));
+
+        let mut twice = CursorArchive::default();
+        twice.insert(archived(1, 100));
+        twice.insert(archived(1, 40));
+        assert_eq!(twice.bytes, once.bytes);
+        assert_eq!(twice.last_id, 1, "the newest shape is the current one");
     }
 }
 
@@ -1590,7 +1692,7 @@ impl<T: InvokeUiSession> Remote<T> {
                 Some(message::Union::CursorData(cd)) => {
                     let id = cd.id;
                     #[cfg(feature = "flutter")]
-                    let compressed = cd.clone();
+                    let compressed = CursorArchive::shape(&cd);
                     match decode_cursor_data(cd) {
                         Ok(cd) => {
                             #[cfg(feature = "flutter")]
@@ -2797,53 +2899,5 @@ mod tests {
             arrives(&mut far).await,
             "a clipboard after the login was held back"
         );
-    }
-
-    fn archived(id: u64, bytes: usize) -> CursorData {
-        CursorData {
-            id,
-            colors: vec![0; bytes].into(),
-            ..Default::default()
-        }
-    }
-
-    #[test]
-    fn a_cursor_archive_past_its_budget_starts_over() {
-        let mut archive = CursorArchive::default();
-        archive.insert(archived(
-            1,
-            CursorArchive::MAX_BYTES - CursorArchive::ENTRY_BYTES,
-        ));
-        archive.insert(archived(2, 1));
-        assert_eq!(archive.shapes.len(), 2, "dropped while still within budget");
-
-        archive.insert(archived(3, 1));
-        assert_eq!(archive.shapes.keys().collect::<Vec<_>>(), vec![&3]);
-    }
-
-    #[test]
-    fn a_stream_of_pixelless_cursors_is_bounded_too() {
-        let mut archive = CursorArchive::default();
-        let most = CursorArchive::MAX_BYTES / CursorArchive::ENTRY_BYTES;
-        for id in 0..=(most as u64 + 1) {
-            archive.insert(archived(id, 0));
-        }
-        assert!(
-            archive.shapes.len() <= most,
-            "kept {} shapes that carry no pixels",
-            archive.shapes.len()
-        );
-    }
-
-    #[test]
-    fn a_replaced_cursor_is_not_counted_twice() {
-        let mut once = CursorArchive::default();
-        once.insert(archived(1, 40));
-
-        let mut twice = CursorArchive::default();
-        twice.insert(archived(1, 100));
-        twice.insert(archived(1, 40));
-        assert_eq!(twice.bytes, once.bytes);
-        assert_eq!(twice.last_id, 1, "the newest shape is the current one");
     }
 }

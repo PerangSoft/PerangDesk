@@ -187,6 +187,51 @@ void main() {
     expect(_ids(ffi), ['1']);
   });
 
+  test('removing the current cursor drops its raster and notifies', () async {
+    final cursor = ffi.cursorModel;
+    await _feed(ffi, 0);
+    _select(ffi, 0);
+    expect(cursor.cache?.id, '0');
+    var notified = 0;
+    cursor.addListener(() => notified++);
+
+    cursor.removeCursor('0');
+    expect(cursor.cache, isNull, reason: 'the page would rebuild it natively');
+    expect(notified, greaterThan(0));
+  });
+
+  test('a flood of unknown cursor ids does not grow the request set for ever',
+      () async {
+    final cursor = ffi.cursorModel as _Cursor;
+    for (var id = 1000; id < 1000 + _max; id++) {
+      _select(ffi, id);
+    }
+    _select(ffi, 1000 + _max);
+    _select(ffi, 1000);
+    expect(cursor.requested.where((id) => id == '1000').length, 2,
+        reason: 'the set was never released');
+  });
+
+  test('one native registration per raster whatever the exact scale',
+      () async {
+    final cursor = ffi.cursorModel;
+    cursor.peerId = 'peer';
+    await _feed(ffi, 0, size: 64);
+    _select(ffi, 0);
+    buildCursorOfCache(cursor, 0.5 - 3e-8, cursor.cache);
+    buildCursorOfCache(cursor, 0.5 - 2e-8, cursor.cache);
+    await Future<void>.delayed(Duration.zero);
+    expect(cursor.cachedKeys.length, 1);
+  });
+
+  test('the last selected cursor follows cursor_data as well', () async {
+    await _feed(ffi, 0);
+    await _feed(ffi, 1);
+    _select(ffi, 0);
+    await _feed(ffi, 2);
+    expect(ffi.ffiModel.cachedPeerData.lastCursorId['id'], '2');
+  });
+
   test('evicting a cursor deletes every native registration of it', () async {
     final cursor = ffi.cursorModel;
     cursor.peerId = 'peer';

@@ -212,8 +212,7 @@ void main() {
         reason: 'the set was never released');
   });
 
-  test('one native registration per raster whatever the exact scale',
-      () async {
+  test('one native registration per raster whatever the exact scale', () async {
     final cursor = ffi.cursorModel;
     cursor.peerId = 'peer';
     await _feed(ffi, 0, size: 64);
@@ -232,6 +231,49 @@ void main() {
     expect(ffi.ffiModel.cachedPeerData.lastCursorId['id'], '2');
   });
 
+  test('a tab evicting a shape leaves a sibling tab of the same peer alone',
+      () async {
+    final other = _FFI();
+    addTearDown(other.cursorModel.disposeImages);
+    for (final f in [ffi, other]) {
+      f.cursorModel.peerId = 'peer';
+      await _feed(f, 0);
+      _select(f, 0);
+      buildCursorOfCache(f.cursorModel, 1.0, f.cursorModel.cache);
+    }
+    await Future<void>.delayed(Duration.zero);
+    final otherKey = other.cursorModel.cachedKeys.single;
+
+    ffi.cursorModel.removeCursor('0');
+    expect(deleted, isNot(contains(otherKey)));
+  });
+
+  test('clearing the session forgets its native registrations too', () async {
+    final cursor = ffi.cursorModel;
+    await _feed(ffi, 0);
+    _select(ffi, 0);
+    buildCursorOfCache(cursor, 1.0, cursor.cache);
+    await Future<void>.delayed(Duration.zero);
+    expect(cursor.cachedKeys, isNotEmpty);
+
+    cursor.clear();
+    expect(cursor.cachedKeys, isEmpty);
+  });
+
+  test('a shape whose resend fails to decode can be asked for again', () async {
+    for (var i = 0; i <= _max; i++) {
+      await _feed(ffi, i);
+    }
+    final cursor = ffi.cursorModel as _Cursor;
+    _select(ffi, 0);
+    final broken = _event(0)..['colors'] = jsonEncode(List.filled(4, 255));
+    ffi.ffiModel.updateLastCursorId(broken);
+    await ffi.ffiModel.handleCursorData(broken);
+
+    _select(ffi, 0);
+    expect(cursor.requested, ['0', '0']);
+  });
+
   test('evicting a cursor deletes every native registration of it', () async {
     final cursor = ffi.cursorModel;
     cursor.peerId = 'peer';
@@ -242,7 +284,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     final keys = cursor.cachedKeys.toList();
     expect(keys.length, 2);
-    expect(keys.every((k) => k.startsWith('peer_0_')), isTrue);
+    expect(keys.every((k) => k.startsWith('peer_${ffi.sessionId}_0_')), isTrue);
     for (var i = 1; i <= _max; i++) {
       await _feed(ffi, i);
     }

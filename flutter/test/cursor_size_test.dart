@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_hbb/common.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/remote_page.dart';
 import 'package:flutter_hbb/models/input_model.dart';
@@ -14,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 
 class _Canvas extends ChangeNotifier implements CanvasModel {
   _Canvas(String style)
@@ -73,6 +75,8 @@ class _Peer extends Fake implements FfiModel {
 
 class _FFI extends Fake implements FFI {
   _FFI(this.canvasModel);
+  @override
+  final SessionID sessionId = const Uuid().v4obj();
   @override
   final CanvasModel canvasModel;
   @override
@@ -150,7 +154,6 @@ CursorData _data((int, int) size, {Offset hotspot = Offset.zero}) {
   }
   image.getPixel(0, 0).setRgba(255, 0, 0, 128);
   return CursorData(
-      peerId: 'size',
       id: '$size',
       image: image,
       scale: 1,
@@ -259,7 +262,7 @@ Future<void> _checkRasterTransitions(
   ]) {
     buildCursorOfCache(cursor, scale, cursor.cache);
     await Future<void>.delayed(Duration.zero);
-    final key = cursor.cache.updateGetKey(scale);
+    final key = cursor.registrationKey(cursor.cache, scale);
     _expectSize(
         registrations.singleWhere((args) => args['name'] == key), expected);
   }
@@ -361,7 +364,7 @@ Future<void> _checkView(WidgetTester tester, (String, bool) mode,
             mode.$1 != kRemoteViewStyleOriginal
         ? (sourceSize * (Platform.isWindows ? dpr : 1.0)).ceil()
         : (size * scale * (Platform.isWindows ? dpr : 1.0)).ceil();
-    final key = cursor.cache.updateGetKey(cursor.cache.scale);
+    final key = cursor.registrationKey(cursor.cache, cursor.cache.scale);
     _expectSize(registrations.singleWhere((v) => v['name'] == key), (w, w));
   }
   await tester.pumpWidget(const SizedBox.shrink());

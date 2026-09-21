@@ -2900,7 +2900,6 @@ class CursorData {
   // At most 4 MiB of RGBA, including Linux's square cursor padding.
   static const _maxRasterSize = 1024;
 
-  final String peerId;
   final String id;
   final img2.Image image;
   double scale;
@@ -2919,7 +2918,6 @@ class CursorData {
   int get rasterHeight => _rasterHeight;
 
   CursorData({
-    required this.peerId,
     required this.id,
     required this.image,
     required this.scale,
@@ -3030,7 +3028,8 @@ class CursorData {
     scale = _checkUpdateScale(scale);
     // The raster and its hotspot depend on the scale only through these two
     // sizes, so one native registration serves every scale that rounds to them.
-    return '${peerId}_${id}_${rasterWidth}_$rasterHeight';
+    // The model prefixes its own scope (see CursorModel.registrationKey).
+    return '${id}_${rasterWidth}_$rasterHeight';
   }
 }
 
@@ -3096,7 +3095,6 @@ class PredefinedCursor {
         }
 
         _cache = CursorData(
-          peerId: '',
           id: id,
           image: _image2!.clone(),
           scale: scale,
@@ -3137,6 +3135,14 @@ class CursorModel with ChangeNotifier {
       .subtract(Duration(milliseconds: 3000 * kMouseControlTimeoutMSec));
   String peerId = '';
   WeakReference<FFI> parent;
+
+  // Native cursor registrations are process-wide and a peer can be open in
+  // more than one tab, so a key names the session, not just the peer: a tab
+  // evicting or clearing a shape would otherwise delete the registration a
+  // sibling tab still lists as its own and never registers again.
+  String get _keyScope => '${peerId}_${parent.target?.sessionId ?? ''}';
+  String registrationKey(CursorData cache, double scale) =>
+      '${_keyScope}_${cache.updateGetKey(scale)}';
 
   // Only for mobile, touch mode
   // To block touch event above the KeyHelpTools
@@ -3530,6 +3536,16 @@ class CursorModel with ChangeNotifier {
   }
 
   updateCursorData(Map<String, dynamic> evt) async {
+    try {
+      await _decodeCursorData(evt);
+    } finally {
+      // Decoded or not, the shape can be asked for again, and only now: more
+      // cursor_id events for it can be handled while the decode is running.
+      _requested.remove(evt['id']);
+    }
+  }
+
+  _decodeCursorData(Map<String, dynamic> evt) async {
     final id = evt['id'];
     final hotx = double.parse(evt['hotx']);
     final hoty = double.parse(evt['hoty']);
@@ -3545,9 +3561,6 @@ class CursorModel with ChangeNotifier {
     if (await _updateCache(rgba, image, id, hotx, hoty, width, height)) {
       _images[id]?.item1.dispose();
       _images[id] = Tuple3(image, hotx, hoty);
-      // Only now is the shape back: more cursor_id events for it can arrive
-      // while the decode above is still running.
-      _requested.remove(id);
     }
 
     // Update last cursor data.
@@ -3589,7 +3602,6 @@ class CursorModel with ChangeNotifier {
       }
     }
     final cache = CursorData(
-      peerId: peerId,
       id: id,
       image: imgOrigin,
       scale: 1.0,
@@ -3664,18 +3676,16 @@ class CursorModel with ChangeNotifier {
       }
       image.dispose();
     }
-    final cache = _cacheMap.remove(id);
+    _cacheMap.remove(id);
     // Left in place, the page would register the evicted raster natively again.
     if (_cache?.id == id) {
       _cache = null;
       shown = true;
     }
-    if (cache != null) {
-      final prefix = '${cache.peerId}_${cache.id}_';
-      for (final k in _cacheKeys.where((k) => k.startsWith(prefix)).toList()) {
-        _cacheKeys.remove(k);
-        deleteCustomCursor(k);
-      }
+    final prefix = '${_keyScope}_${id}_';
+    for (final k in _cacheKeys.where((k) => k.startsWith(prefix)).toList()) {
+      _cacheKeys.remove(k);
+      deleteCustomCursor(k);
     }
     if (shown) {
       try {
@@ -3745,6 +3755,7 @@ class CursorModel with ChangeNotifier {
       debugPrint("deleting cursor with key $k");
       deleteCustomCursor(k);
     }
+    _cacheKeys.clear();
     resetSystemCursor();
   }
 

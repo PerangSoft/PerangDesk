@@ -1475,6 +1475,11 @@ impl<T: InvokeUiSession> Session<T> {
         self.send(Data::ElevateDirect);
     }
 
+    #[cfg(feature = "flutter")]
+    pub fn request_cursor_data(&self, id: u64) {
+        self.send(Data::RequestCursorData(id));
+    }
+
     pub fn elevate_with_logon(&self, username: String, password: String) {
         self.send(Data::ElevateWithLogon(username, password));
     }

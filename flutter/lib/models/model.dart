@@ -56,6 +56,15 @@ final _constSessionId = Uuid().v4obj();
 const _restartReconnectSilentDelaySecs = 5;
 
 class CachedPeerData {
+  // Decoded cursors kept per session. The peer sends only the id of a shape it
+  // has already sent, so an evicted shape is fetched again from the compressed
+  // copy the Rust side keeps (see CursorModel.requestCursorData).
+  static const kMaxCursorDataCount = 64;
+  // A shape's pixels arrive as a JSON array of integers, so the largest cursor
+  // the peer may send is about four million characters on its own. Ordinary
+  // cursors are a few thousand, which leaves this a bound on outsized ones.
+  static const kMaxCursorDataChars = 4 << 20;
+
   Map<String, dynamic> updatePrivacyMode = {};
   Map<String, dynamic> peerInfo = {};
   List<Map<String, dynamic>> cursorDataList = [];
@@ -1657,14 +1666,41 @@ class FfiModel with ChangeNotifier {
     parent.target?.cursorModel.id = evt['id'];
   }
 
+  // `cursorDataList` doubles as the LRU order of the decoded cursors: the entry
+  // of the id in use is moved to the end, so it is never the one evicted.
   handleCursorId(Map<String, dynamic> evt) {
     cachedPeerData.lastCursorId = evt;
+    final list = cachedPeerData.cursorDataList;
+    final i = list.indexWhere((e) => e['id'] == evt['id']);
+    if (i >= 0) {
+      list.add(list.removeAt(i));
+    }
     parent.target?.cursorModel.updateCursorId(evt);
   }
 
   handleCursorData(Map<String, dynamic> evt) async {
-    cachedPeerData.cursorDataList.add(evt);
+    final id = evt['id'];
+    final list = cachedPeerData.cursorDataList;
+    list.removeWhere((e) => e['id'] == id);
+    list.add(evt);
+    // The web core has no compressed copy to fetch an evicted shape from.
+    if (!isWeb) {
+      var chars =
+          list.fold<int>(0, (n, e) => n + (e['colors'] as String).length);
+      while (list.length > 1 &&
+          (list.length > CachedPeerData.kMaxCursorDataCount ||
+              chars > CachedPeerData.kMaxCursorDataChars)) {
+        final dropped = list.removeAt(0);
+        chars -= (dropped['colors'] as String).length;
+        parent.target?.cursorModel.removeCursor(dropped['id']);
+      }
+    }
     await parent.target?.cursorModel.updateCursorData(evt);
+    // Session events are dispatched concurrently, so this shape may have been
+    // evicted while it was decoding; the decode has just put it back.
+    if (!isWeb && !list.any((e) => e['id'] == id)) {
+      parent.target?.cursorModel.removeCursor(id);
+    }
   }
 
   /// Handle the peer info synchronization event based on [evt].
@@ -3080,6 +3116,7 @@ class CursorModel with ChangeNotifier {
   CursorData? _cache;
   final _cacheMap = <String, CursorData>{};
   final _cacheKeys = <String>{};
+  final _requested = <String>{};
   double _x = -10000;
   double _y = -10000;
   // int.parse(evt['id']) may cause FormatException
@@ -3505,6 +3542,9 @@ class CursorModel with ChangeNotifier {
     if (await _updateCache(rgba, image, id, hotx, hoty, width, height)) {
       _images[id]?.item1.dispose();
       _images[id] = Tuple3(image, hotx, hoty);
+      // Only now is the shape back: more cursor_id events for it can arrive
+      // while the decode above is still running.
+      _requested.remove(id);
     }
 
     // Update last cursor data.
@@ -3584,6 +3624,41 @@ class CursorModel with ChangeNotifier {
     if (!_updateCurData()) {
       debugPrint(
           'WARNING: updateCursorId $_id, cache is ${_cache == null ? "null" : "not null"}. without notifyListeners()');
+      // Ask once: the shape comes back as a cursor_data event, and further
+      // cursor_id events for it can be handled before that one is decoded.
+      if (_requested.add(_id)) {
+        requestCursorData(_id);
+      }
+    }
+  }
+
+  // The shape arrives again as a normal `cursor_data` event. The web core keeps
+  // no compressed copy, so nothing is evicted there and nothing is requested.
+  requestCursorData(String id) {
+    final sessionId = parent.target?.sessionId;
+    if (!isWeb && sessionId != null) {
+      bind.sessionRequestCursorData(sessionId: sessionId, id: id);
+    }
+  }
+
+  removeCursor(String id) {
+    final image = _images.remove(id)?.item1;
+    if (image != null) {
+      // `_image` only advances when `_updateCurData()` finds an image, so it can
+      // still be the one disposed here; painting it would then throw.
+      if (identical(_image, image)) {
+        _image = null;
+      }
+      image.dispose();
+    }
+    final cache = _cacheMap.remove(id);
+    if (cache == null) {
+      return;
+    }
+    final prefix = '${cache.peerId}_${cache.id}_';
+    for (final k in _cacheKeys.where((k) => k.startsWith(prefix)).toList()) {
+      _cacheKeys.remove(k);
+      deleteCustomCursor(k);
     }
   }
 
@@ -3636,6 +3711,7 @@ class CursorModel with ChangeNotifier {
     _clearCache();
     _cache = null;
     _cacheMap.clear();
+    _requested.clear();
   }
 
   _clearCache() {

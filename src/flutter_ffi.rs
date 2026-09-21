@@ -903,6 +903,15 @@ pub fn session_elevate_direct(session_id: SessionID) {
     }
 }
 
+pub fn session_request_cursor_data(session_id: SessionID, id: String) {
+    if let Some(session) = sessions::get_session_by_session_id(&session_id) {
+        match id.parse::<u64>() {
+            Ok(id) => session.request_cursor_data(id),
+            Err(err) => log::warn!("Invalid cursor id {id}: {err}"),
+        }
+    }
+}
+
 pub fn session_elevate_with_logon(session_id: SessionID, username: String, password: String) {
     if let Some(session) = sessions::get_session_by_session_id(&session_id) {
         session.elevate_with_logon(username, password);

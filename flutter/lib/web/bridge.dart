@@ -1692,6 +1692,11 @@ class RustdeskImpl {
     throw UnimplementedError("sessionRequestNewDisplayInitMsgs");
   }
 
+  Future<void> sessionRequestCursorData(
+      {required UuidValue sessionId, required String id, dynamic hint}) {
+    throw UnimplementedError("sessionRequestCursorData");
+  }
+
   Future<String> mainHandleWaylandScreencastRestoreToken(
       {required String key, required String value, dynamic hint}) {
     throw UnimplementedError("mainHandleWaylandScreencastRestoreToken");

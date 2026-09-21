@@ -4979,6 +4979,8 @@ pub enum Data {
     ResetDecoder(Option<usize>),
     RenameFile((i32, String, String, bool)),
     TakeScreenshot((i32, String)),
+    #[cfg(feature = "flutter")]
+    RequestCursorData(u64),
 }
 
 pub async fn confirm_insecure_connection(

@@ -96,6 +96,44 @@ pub struct Remote<T: InvokeUiSession> {
     chroma: Arc<RwLock<Option<Chroma>>>,
     last_record_state: bool,
     sent_close_reason: bool,
+    #[cfg(feature = "flutter")]
+    cursor_archive: CursorArchive,
+}
+
+// The peer sends each cursor shape once and afterwards only its id, so a shape the Flutter UI
+// has evicted has to be recoverable here. Shapes are kept compressed, as received. The Sciter UI
+// keeps every shape itself, so it has no use for this.
+#[cfg(feature = "flutter")]
+#[derive(Default)]
+struct CursorArchive {
+    shapes: HashMap<u64, CursorData>,
+    bytes: usize,
+    // What the peer last said it is showing, which a resend must not change.
+    last_id: u64,
+}
+
+#[cfg(feature = "flutter")]
+impl CursorArchive {
+    // A session's shapes are a few hundred bytes each, so this is out of reach of any honest
+    // peer. Past it the map is dropped whole, as the server does with its own cursor cache: a
+    // shape the peer never sends again then just stays stale, which is what it did before this
+    // archive existed.
+    const MAX_BYTES: usize = 16 << 20;
+    // What a map slot and the CursorData around the pixels cost, so that a peer streaming
+    // one-pixel shapes is held to the same budget as one streaming full-size ones.
+    const ENTRY_BYTES: usize = 256;
+
+    fn insert(&mut self, cd: CursorData) {
+        if self.bytes > Self::MAX_BYTES {
+            self.shapes.clear();
+            self.bytes = 0;
+        }
+        self.last_id = cd.id;
+        self.bytes += cd.colors.len() + Self::ENTRY_BYTES;
+        if let Some(old) = self.shapes.insert(cd.id, cd) {
+            self.bytes -= old.colors.len() + Self::ENTRY_BYTES;
+        }
+    }
 }
 
 #[derive(Default)]
@@ -145,6 +183,8 @@ impl<T: InvokeUiSession> Remote<T> {
             chroma: Default::default(),
             last_record_state: false,
             sent_close_reason: false,
+            #[cfg(feature = "flutter")]
+            cursor_archive: Default::default(),
         }
     }
 
@@ -625,6 +665,26 @@ impl<T: InvokeUiSession> Remote<T> {
         self.sent_close_reason = true;
     }
 
+    #[cfg(feature = "flutter")]
+    fn resend_cursor_data(&self, id: u64) {
+        match self.cursor_archive.shapes.get(&id) {
+            None => log::warn!("Cursor {id} was asked for after the archive dropped it"),
+            Some(cd) => match decode_cursor_data(cd.clone()) {
+                Ok(cd) => {
+                    self.handler.set_cursor_data(cd);
+                    // A resend arrives as an ordinary cursor_data event, which would otherwise
+                    // make it the shape on screen. Say again which shape that is only when the
+                    // peer moved to another one while the request was in flight.
+                    let last_id = self.cursor_archive.last_id;
+                    if last_id != id {
+                        self.handler.set_cursor_id(last_id.to_string());
+                    }
+                }
+                Err(err) => log::warn!("Rejected cursor {id}: {err}"),
+            },
+        }
+    }
+
     async fn handle_msg_from_ui(&mut self, data: Data, peer: &mut Stream) -> bool {
         match data {
             Data::Close => {
@@ -635,6 +695,10 @@ impl<T: InvokeUiSession> Remote<T> {
                 self.handler
                     .handle_login_from_ui(os_username, os_password, password, remember, peer)
                     .await;
+            }
+            #[cfg(feature = "flutter")]
+            Data::RequestCursorData(id) => {
+                self.resend_cursor_data(id);
             }
             #[cfg(all(target_os = "windows", not(feature = "flutter")))]
             Data::ToggleClipboardFile => {
@@ -1525,12 +1589,22 @@ impl<T: InvokeUiSession> Remote<T> {
                 },
                 Some(message::Union::CursorData(cd)) => {
                     let id = cd.id;
+                    #[cfg(feature = "flutter")]
+                    let compressed = cd.clone();
                     match decode_cursor_data(cd) {
-                        Ok(cd) => self.handler.set_cursor_data(cd),
+                        Ok(cd) => {
+                            #[cfg(feature = "flutter")]
+                            self.cursor_archive.insert(compressed);
+                            self.handler.set_cursor_data(cd);
+                        }
                         Err(err) => log::warn!("Rejected cursor {id}: {err}"),
                     }
                 }
                 Some(message::Union::CursorId(id)) => {
+                    #[cfg(feature = "flutter")]
+                    {
+                        self.cursor_archive.last_id = id;
+                    }
                     self.handler.set_cursor_id(id.to_string());
                 }
                 Some(message::Union::CursorPosition(cp)) => {
@@ -2723,5 +2797,53 @@ mod tests {
             arrives(&mut far).await,
             "a clipboard after the login was held back"
         );
+    }
+
+    fn archived(id: u64, bytes: usize) -> CursorData {
+        CursorData {
+            id,
+            colors: vec![0; bytes].into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_cursor_archive_past_its_budget_starts_over() {
+        let mut archive = CursorArchive::default();
+        archive.insert(archived(
+            1,
+            CursorArchive::MAX_BYTES - CursorArchive::ENTRY_BYTES,
+        ));
+        archive.insert(archived(2, 1));
+        assert_eq!(archive.shapes.len(), 2, "dropped while still within budget");
+
+        archive.insert(archived(3, 1));
+        assert_eq!(archive.shapes.keys().collect::<Vec<_>>(), vec![&3]);
+    }
+
+    #[test]
+    fn a_stream_of_pixelless_cursors_is_bounded_too() {
+        let mut archive = CursorArchive::default();
+        let most = CursorArchive::MAX_BYTES / CursorArchive::ENTRY_BYTES;
+        for id in 0..=(most as u64 + 1) {
+            archive.insert(archived(id, 0));
+        }
+        assert!(
+            archive.shapes.len() <= most,
+            "kept {} shapes that carry no pixels",
+            archive.shapes.len()
+        );
+    }
+
+    #[test]
+    fn a_replaced_cursor_is_not_counted_twice() {
+        let mut once = CursorArchive::default();
+        once.insert(archived(1, 40));
+
+        let mut twice = CursorArchive::default();
+        twice.insert(archived(1, 100));
+        twice.insert(archived(1, 40));
+        assert_eq!(twice.bytes, once.bytes);
+        assert_eq!(twice.last_id, 1, "the newest shape is the current one");
     }
 }

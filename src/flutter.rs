@@ -664,6 +664,29 @@ impl InvokeUiSession for FlutterHandler {
         self.push_event("cursor_id", &[("id", &id.to_string())], &[]);
     }
 
+    fn set_cursor_data_to(&self, session_id: &SessionID, cd: CursorData) {
+        let colors = &cd.colors;
+        self.push_event_to(
+            "cursor_data",
+            &[
+                ("id", &cd.id.to_string()),
+                ("hotx", &cd.hotx.to_string()),
+                ("hoty", &cd.hoty.to_string()),
+                ("width", &cd.width.to_string()),
+                ("height", &cd.height.to_string()),
+                (
+                    "colors",
+                    &serde_json::ser::to_string(&colors).unwrap_or("".to_owned()),
+                ),
+            ],
+            &[session_id],
+        );
+    }
+
+    fn set_cursor_id_to(&self, session_id: &SessionID, id: String) {
+        self.push_event_to("cursor_id", &[("id", &id)], &[session_id]);
+    }
+
     fn set_cursor_position(&self, cp: CursorPosition) {
         self.push_event(
             "cursor_position",

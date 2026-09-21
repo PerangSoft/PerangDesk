@@ -43,6 +43,8 @@ use clipboard::ContextSend;
 use crossbeam_queue::ArrayQueue;
 #[cfg(not(target_os = "ios"))]
 use hbb_common::tokio::sync::mpsc::error::TryRecvError;
+#[cfg(feature = "flutter")]
+use hbb_common::SessionID;
 use hbb_common::{
     allow_err,
     config::{self, LocalConfig, PeerConfig, TransferSerde},
@@ -768,18 +770,19 @@ impl<T: InvokeUiSession> Remote<T> {
     }
 
     #[cfg(feature = "flutter")]
-    fn resend_cursor_data(&self, id: u64) {
+    fn resend_cursor_data(&self, session_id: SessionID, id: u64) {
         match self.cursor_archive.shapes.get(&id) {
             None => log::warn!("Cursor {id} was asked for after the archive dropped it"),
             Some(cd) => match decode_cursor_data(cd.clone()) {
                 Ok(cd) => {
-                    self.handler.set_cursor_data(cd);
+                    self.handler.set_cursor_data_to(&session_id, cd);
                     // A resend arrives as an ordinary cursor_data event, which would otherwise
                     // make it the shape on screen. Say again which shape that is only when the
                     // peer moved to another one while the request was in flight.
                     let last_id = self.cursor_archive.last_id;
                     if last_id != id {
-                        self.handler.set_cursor_id(last_id.to_string());
+                        self.handler
+                            .set_cursor_id_to(&session_id, last_id.to_string());
                     }
                 }
                 Err(err) => log::warn!("Rejected cursor {id}: {err}"),
@@ -799,8 +802,8 @@ impl<T: InvokeUiSession> Remote<T> {
                     .await;
             }
             #[cfg(feature = "flutter")]
-            Data::RequestCursorData(id) => {
-                self.resend_cursor_data(id);
+            Data::RequestCursorData(session_id, id) => {
+                self.resend_cursor_data(session_id, id);
             }
             #[cfg(all(target_os = "windows", not(feature = "flutter")))]
             Data::ToggleClipboardFile => {

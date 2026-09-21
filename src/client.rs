@@ -43,6 +43,8 @@ pub use file_trait::FileManager;
 #[cfg(not(feature = "flutter"))]
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use hbb_common::tokio::sync::mpsc::UnboundedSender;
+#[cfg(feature = "flutter")]
+use hbb_common::SessionID;
 use hbb_common::{
     allow_err,
     anyhow::{anyhow, Context},
@@ -4980,7 +4982,7 @@ pub enum Data {
     RenameFile((i32, String, String, bool)),
     TakeScreenshot((i32, String)),
     #[cfg(feature = "flutter")]
-    RequestCursorData(u64),
+    RequestCursorData(SessionID, u64),
 }
 
 pub async fn confirm_insecure_connection(

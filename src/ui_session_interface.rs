@@ -13,6 +13,8 @@ use base::config::keys;
 use base::fs;
 use base::message_proto::*;
 use bytes::Bytes;
+#[cfg(feature = "flutter")]
+use hbb_common::SessionID;
 use hbb_common::{
     allow_err,
     config::{Config, LocalConfig, PeerConfig},
@@ -1476,8 +1478,8 @@ impl<T: InvokeUiSession> Session<T> {
     }
 
     #[cfg(feature = "flutter")]
-    pub fn request_cursor_data(&self, id: u64) {
-        self.send(Data::RequestCursorData(id));
+    pub fn request_cursor_data(&self, session_id: SessionID, id: u64) {
+        self.send(Data::RequestCursorData(session_id, id));
     }
 
     pub fn elevate_with_logon(&self, username: String, password: String) {
@@ -1684,6 +1686,10 @@ impl<T: InvokeUiSession> Session<T> {
 pub trait InvokeUiSession: Send + Sync + Clone + 'static + Sized + Default {
     fn set_cursor_data(&self, cd: CursorData);
     fn set_cursor_id(&self, id: String);
+    #[cfg(feature = "flutter")]
+    fn set_cursor_data_to(&self, session_id: &SessionID, cd: CursorData);
+    #[cfg(feature = "flutter")]
+    fn set_cursor_id_to(&self, session_id: &SessionID, id: String);
     fn set_cursor_position(&self, cp: CursorPosition);
     fn set_display(&self, x: i32, y: i32, w: i32, h: i32, cursor_embedded: bool, scale: f64);
     fn switch_display(&self, display: &SwitchDisplay);

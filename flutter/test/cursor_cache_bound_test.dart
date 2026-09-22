@@ -241,12 +241,18 @@ void main() {
             'the view for as long as the peer is busy');
   });
 
-  test('cursors past the character budget are dropped before the count',
+  test('largest shapes past the character budget are dropped before the count',
       () async {
-    final half = CachedPeerData.kMaxCursorDataChars ~/ 2 + 1;
-    await _feed(ffi, 0, chars: half);
-    await _feed(ffi, 1, chars: half);
-    expect(_ids(ffi), ['1']);
+    // The core rejects shapes over 512 px a side, so this is what one costs.
+    const largest = 4 << 20;
+    final fit = CachedPeerData.kMaxCursorDataChars ~/ largest;
+    expect(fit, lessThan(_max),
+        reason: 'a budget the count reaches first bounds nothing');
+    for (var i = 0; i <= fit; i++) {
+      await _feed(ffi, i, chars: largest);
+    }
+    expect(_ids(ffi).length, fit);
+    expect(_ids(ffi).first, '1');
   });
 
   test('removing the current cursor drops its raster and notifies', () async {

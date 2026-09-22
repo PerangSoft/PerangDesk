@@ -57,9 +57,8 @@ const _restartReconnectSilentDelaySecs = 5;
 
 class CachedPeerData {
   // Decoded cursors kept per session. The peer sends only the id of a shape it
-  // has already sent, so an evicted shape is fetched again from the copy the
-  // Rust client keeps compressed, or the web client keeps as pixels (see
-  // CursorModel.requestCursorData).
+  // has already sent, so an evicted shape is fetched again from the compressed
+  // copy the core keeps (see CursorModel.requestCursorData).
   static const kMaxCursorDataCount = 64;
   // A shape's pixels arrive as a JSON array of integers, so the largest cursor
   // the peer may send is about four million characters on its own, and a peer
@@ -3131,13 +3130,6 @@ class CursorModel with ChangeNotifier {
   final _cacheMap = <String, CursorData>{};
   final _cacheKeys = <String>{};
   final _requested = <String>{};
-  // The web client has no core keeping a copy of the shapes, so it keeps their
-  // pixels here, least recently used first, and decodes an evicted shape from
-  // them again. Raw pixels, so the budget is roomier than the compressed
-  // archive of the Rust client.
-  static const kMaxArchivedCursorBytes = 32 << 20;
-  final _archived = <String, (Uint8List, Map<String, dynamic>)>{};
-  var _archivedBytes = 0;
   double _x = -10000;
   double _y = -10000;
   // int.parse(evt['id']) may cause FormatException
@@ -3565,9 +3557,6 @@ class CursorModel with ChangeNotifier {
       final height = int.parse(evt['height']);
       List<dynamic> colors = json.decode(evt['colors']);
       final rgba = Uint8List.fromList(colors.map((s) => s as int).toList());
-      if (isWeb) {
-        archiveCursor(evt, rgba);
-      }
       final image = await img.decodeImageFromPixels(
           rgba, width, height, ui.PixelFormat.rgba8888);
       if (image == null) {
@@ -3657,9 +3646,6 @@ class CursorModel with ChangeNotifier {
   }
 
   updateCursorId(Map<String, dynamic> evt) {
-    if (isWeb) {
-      touchArchivedCursor(_id);
-    }
     if (!_updateCurData()) {
       debugPrint(
           'WARNING: updateCursorId $_id, cache is ${_cache == null ? "null" : "not null"}. without notifyListeners()');
@@ -3678,45 +3664,10 @@ class CursorModel with ChangeNotifier {
 
   // The shape arrives again as a normal `cursor_data` event.
   requestCursorData(String id) {
-    if (isWeb) {
-      resendArchivedCursor(id);
-      return;
-    }
     final sessionId = parent.target?.sessionId;
     if (sessionId != null) {
       bind.sessionRequestCursorData(sessionId: sessionId, id: id);
     }
-  }
-
-  Iterable<String> get archivedCursorIds => _archived.keys;
-
-  archiveCursor(Map<String, dynamic> evt, Uint8List rgba) {
-    final id = evt['id'];
-    _archivedBytes -= _archived.remove(id)?.$1.length ?? 0;
-    while (_archived.isNotEmpty &&
-        _archivedBytes + rgba.length > kMaxArchivedCursorBytes) {
-      _archivedBytes -= _archived.remove(_archived.keys.first)!.$1.length;
-    }
-    _archived[id] = (rgba, {...evt}..remove('colors'));
-    _archivedBytes += rgba.length;
-  }
-
-  // Selecting a shape keeps it archived ahead of ones the peer left unused.
-  touchArchivedCursor(String id) {
-    final archived = _archived.remove(id);
-    if (archived != null) {
-      _archived[id] = archived;
-    }
-  }
-
-  // The shape takes the path a resend from the Rust client takes.
-  Future<void>? resendArchivedCursor(String id) {
-    final archived = _archived[id];
-    if (archived == null) {
-      return null;
-    }
-    return parent.target?.ffiModel
-        .handleCursorData({...archived.$2, 'colors': jsonEncode(archived.$1)});
   }
 
   removeCursor(String id) {
@@ -3802,8 +3753,6 @@ class CursorModel with ChangeNotifier {
     _cache = null;
     _cacheMap.clear();
     _requested.clear();
-    _archived.clear();
-    _archivedBytes = 0;
   }
 
   _clearCache() {

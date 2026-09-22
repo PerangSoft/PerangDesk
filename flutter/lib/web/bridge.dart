@@ -1692,9 +1692,12 @@ class RustdeskImpl {
     throw UnimplementedError("sessionRequestNewDisplayInitMsgs");
   }
 
+  // The core keeps the shapes it received compressed and answers with the
+  // `cursor_data` event again, then `cursor_id` if the peer has moved on.
   Future<void> sessionRequestCursorData(
       {required UuidValue sessionId, required String id, dynamic hint}) {
-    throw UnimplementedError("sessionRequestCursorData");
+    return Future(
+        () => js.context.callMethod('setByName', ['request_cursor_data', id]));
   }
 
   Future<String> mainHandleWaylandScreencastRestoreToken(

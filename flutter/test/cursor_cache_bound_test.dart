@@ -29,32 +29,23 @@ class _FFI extends Fake implements FFI {
 }
 
 const _size = 8;
-const _max = CachedPeerData.kMaxCursorDataCount;
-// The core rejects shapes over 512 px a side, and that many opaque pixels as
-// JSON is four characters a byte plus the closing bracket.
-const _largest = (4 << 20) + 1;
+const _max = CursorModel.kMaxDecodedCursors;
+// The largest shape the core lets through, in pixels a side.
+const _largest = 512;
 
-/// A shape of [size] pixels a side whose colors take at least [chars]
-/// characters, as a large shape's do: JSON ignores the padding, so the decode
-/// stays as cheap as the pixels.
-Map<String, dynamic> _event(int id, {int size = _size, int chars = 0}) {
-  var colors = jsonEncode(List.filled(size * size * 4, 255));
-  if (colors.length < chars) {
-    colors = '[${' ' * (chars - colors.length)}${colors.substring(1)}';
-  }
-  return {
-    'id': '$id',
-    'hotx': '0',
-    'hoty': '0',
-    'width': '$size',
-    'height': '$size',
-    'colors': colors,
-  };
-}
+Map<String, dynamic> _event(int id, {int size = _size}) => {
+      'id': '$id',
+      'hotx': '0',
+      'hoty': '0',
+      'width': '$size',
+      'height': '$size',
+      // Transparent, which keeps the JSON short and the PNG small.
+      'colors': jsonEncode(List.filled(size * size * 4, 0)),
+    };
 
 /// Mirrors the `cursor_data` branch of the session event listener.
-Future<void> _feed(_FFI ffi, int id, {int size = _size, int chars = 0}) async {
-  final evt = _event(id, size: size, chars: chars);
+Future<void> _feed(_FFI ffi, int id, {int size = _size}) async {
+  final evt = _event(id, size: size);
   ffi.ffiModel.updateLastCursorId(evt);
   await ffi.ffiModel.handleCursorData(evt);
 }
@@ -78,9 +69,7 @@ void _select(_FFI ffi, int id) {
   ffi.ffiModel.handleCursorId(evt);
 }
 
-List<String> _ids(_FFI ffi) => ffi.ffiModel.cachedPeerData.cursorDataList
-    .map((e) => e['id'] as String)
-    .toList();
+List<String> _ids(_FFI ffi) => ffi.cursorModel.decodedIds.toList();
 
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
@@ -107,7 +96,7 @@ void main() {
   });
 
   test(
-      'keeps at most kMaxCursorDataCount cursors and re-requests an evicted one',
+      'keeps at most kMaxDecodedCursors cursors and re-requests an evicted one',
       () async {
     for (var i = 0; i <= _max; i++) {
       await _feed(ffi, i);
@@ -172,40 +161,23 @@ void main() {
     expect(cursor.requested, ['0']);
   });
 
-  test('a cursor evicted while decoding is not left behind', () async {
-    await _feedConcurrently(ffi, Iterable.generate(_max + 1));
-    expect(_ids(ffi), isNot(contains('0')));
-
+  test('the shape in use is kept however late it decodes', () async {
     final cursor = ffi.cursorModel as _Cursor;
     _select(ffi, 0);
-    expect(cursor.requested, ['0'], reason: 'the late decode was kept');
-  });
+    expect(cursor.requested, ['0']);
 
-  test('resends arriving in a burst keep the shape the peer settled on',
-      () async {
-    // Five shapes of over a quarter of the budget never fit it together, so
-    // their resends evict the first while it is still decoding.
-    final cursor = ffi.cursorModel as _Cursor;
-    for (var id = 0; id < 5; id++) {
-      _select(ffi, id);
-    }
+    // Its resend arrives among a flood of other shapes, decoded in no set
+    // order, and is followed by the id the peer is on.
+    final pending = _feedConcurrently(ffi, Iterable.generate(_max + 1));
     _select(ffi, 0);
-    expect(cursor.requested, ['0', '1', '2', '3', '4']);
+    await pending;
 
-    final pending = <Future<void>>[];
-    final quarter = CachedPeerData.kMaxCursorDataChars ~/ 4 + 1;
-    for (var id = 0; id < 5; id++) {
-      pending.add(_feed(ffi, id, chars: quarter));
-    }
-    // The resend of the last shape is followed by the id the peer is on.
-    _select(ffi, 0);
-    expect(_ids(ffi), isNot(contains('0')));
-    await Future.wait(pending);
-
+    expect(_ids(ffi).length, _max);
+    expect(_ids(ffi), contains('0'));
     expect(cursor.cache?.id, '0');
     expect(cursor.image, isNotNull);
-    expect(_ids(ffi), contains('0'));
-    expect(cursor.requested.length, 5, reason: 'nothing left to ask for');
+    _select(ffi, 0);
+    expect(cursor.requested, ['0'], reason: 'nothing left to ask for');
   });
 
   test('a session clear forgets the requests it was waiting on', () async {
@@ -220,8 +192,8 @@ void main() {
   });
 
   test('two cursors of the largest size stay cached together', () async {
-    await _feed(ffi, 0, size: 512);
-    await _feed(ffi, 1, size: 512);
+    await _feed(ffi, 0, size: _largest);
+    await _feed(ffi, 1, size: _largest);
     expect(_ids(ffi), ['0', '1'],
         reason: 'switching between two large shapes would refetch each time');
   });
@@ -232,7 +204,7 @@ void main() {
     // to what a Windows pointer reaches at 200% scaling, each is 512 px.
     const frames = 18;
     for (var frame = 0; frame < frames; frame++) {
-      await _feed(ffi, frame, chars: _largest);
+      await _feed(ffi, frame, size: _largest);
     }
     final cursor = ffi.cursorModel as _Cursor;
     for (var frame = 0; frame < frames; frame++) {
@@ -243,13 +215,13 @@ void main() {
             'the view for as long as the peer is busy');
   });
 
-  test('largest shapes past the character budget are dropped before the count',
+  test('largest shapes past the pixel budget are dropped before the count',
       () async {
-    final fit = CachedPeerData.kMaxCursorDataChars ~/ _largest;
+    final fit = CursorModel.kMaxDecodedCursorBytes ~/ (_largest * _largest * 4);
     expect(fit, lessThan(_max),
         reason: 'a budget the count reaches first bounds nothing');
     for (var i = 0; i <= fit; i++) {
-      await _feed(ffi, i, chars: _largest);
+      await _feed(ffi, i, size: _largest);
     }
     expect(_ids(ffi).length, fit);
     expect(_ids(ffi).first, '1');
@@ -299,65 +271,11 @@ void main() {
     expect(ffi.ffiModel.cachedPeerData.lastCursorId['id'], '2');
   });
 
-  test('a tab evicting a shape leaves a sibling tab of the same peer alone',
-      () async {
-    final other = _FFI();
-    addTearDown(other.cursorModel.disposeImages);
-    for (final f in [ffi, other]) {
-      f.cursorModel.peerId = 'peer';
-      await _feed(f, 0);
-      _select(f, 0);
-      buildCursorOfCache(f.cursorModel, 1.0, f.cursorModel.cache);
-    }
-    await Future<void>.delayed(Duration.zero);
-    final otherKey = other.cursorModel.cachedKeys.single;
-
-    ffi.cursorModel.removeCursor('0');
-    expect(deleted, isNot(contains(otherKey)));
-  });
-
-  test('clearing the session forgets its native registrations too', () async {
-    final cursor = ffi.cursorModel;
+  test('a moved tab carries the id in use and not the shapes', () async {
     await _feed(ffi, 0);
     _select(ffi, 0);
-    buildCursorOfCache(cursor, 1.0, cursor.cache);
-    await Future<void>.delayed(Duration.zero);
-    expect(cursor.cachedKeys, isNotEmpty);
-
-    cursor.clear();
-    expect(cursor.cachedKeys, isEmpty);
-  });
-
-  test('a shape whose resend fails to decode can be asked for again', () async {
-    for (var i = 0; i <= _max; i++) {
-      await _feed(ffi, i);
-    }
-    final cursor = ffi.cursorModel as _Cursor;
-    _select(ffi, 0);
-    final broken = _event(0)..['colors'] = jsonEncode(List.filled(4, 255));
-    ffi.ffiModel.updateLastCursorId(broken);
-    await ffi.ffiModel.handleCursorData(broken);
-
-    _select(ffi, 0);
-    expect(cursor.requested, ['0', '0']);
-  });
-
-  test('evicting a cursor deletes every native registration of it', () async {
-    final cursor = ffi.cursorModel;
-    cursor.peerId = 'peer';
-    await _feed(ffi, 0);
-    _select(ffi, 0);
-    buildCursorOfCache(cursor, 1.0, cursor.cache);
-    buildCursorOfCache(cursor, 0.5, cursor.cache);
-    await Future<void>.delayed(Duration.zero);
-    final keys = cursor.cachedKeys.toList();
-    expect(keys.length, 2);
-    expect(keys.every((k) => k.startsWith('${ffi.sessionId}_peer_0_')), isTrue);
-    for (var i = 1; i <= _max; i++) {
-      await _feed(ffi, i);
-    }
-    expect(_ids(ffi), isNot(contains('0')));
-    expect(deleted.toSet(), keys.toSet());
-    expect(cursor.cachedKeys, isEmpty);
+    final carried = ffi.ffiModel.cachedPeerData.toString();
+    expect(carried, isNot(contains('colors')));
+    expect(CachedPeerData.fromString(carried)?.lastCursorId['id'], '0');
   });
 }

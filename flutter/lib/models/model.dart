@@ -56,24 +56,10 @@ final _constSessionId = Uuid().v4obj();
 const _restartReconnectSilentDelaySecs = 5;
 
 class CachedPeerData {
-  // Decoded cursors kept per session. The peer sends only the id of a shape it
-  // has already sent, so an evicted shape is fetched again from the compressed
-  // copy the core keeps (see CursorModel.requestCursorData).
-  static const kMaxCursorDataCount = 64;
-  // A shape's pixels arrive as a JSON array of integers, so the largest shape
-  // the core lets through, 512 px a side, is about four million characters
-  // when opaque. An enlarged Windows pointer at 200% scaling is that size, and
-  // its busy pointer is a ring of eighteen such shapes each sent once, which
-  // all have to stay decoded with the static pointers beside them or the ring
-  // decodes a frame on every turn. Thirty-one of the largest do that with room
-  // for the second animated pointer, whose ring is mostly transparent, while
-  // still holding a session to half of what the count alone would let it keep.
-  // Ordinary cursors are a few thousand characters.
-  static const kMaxCursorDataChars = 128 << 20;
-
   Map<String, dynamic> updatePrivacyMode = {};
   Map<String, dynamic> peerInfo = {};
-  List<Map<String, dynamic>> cursorDataList = [];
+  // The shapes themselves are not carried over: the core keeps them, and a
+  // window given this asks it for the one in use (see CursorModel).
   Map<String, dynamic> lastCursorId = {};
   Map<String, bool> permissions = {};
 
@@ -88,7 +74,6 @@ class CachedPeerData {
     return jsonEncode({
       'updatePrivacyMode': updatePrivacyMode,
       'peerInfo': peerInfo,
-      'cursorDataList': cursorDataList,
       'lastCursorId': lastCursorId,
       'permissions': permissions,
       'secure': secure,
@@ -103,9 +88,6 @@ class CachedPeerData {
       final data = CachedPeerData();
       data.updatePrivacyMode = map['updatePrivacyMode'];
       data.peerInfo = map['peerInfo'];
-      for (final cursorData in map['cursorDataList']) {
-        data.cursorDataList.add(cursorData);
-      }
       data.lastCursorId = map['lastCursorId'];
       map['permissions'].forEach((key, value) {
         data.permissions[key] = value;
@@ -338,10 +320,6 @@ class FfiModel with ChangeNotifier {
     updatePrivacyMode(data.updatePrivacyMode, sessionId, peerId);
     setConnectionType(peerId, data.secure, data.direct, data.streamType);
     await handlePeerInfo(data.peerInfo, peerId, true);
-    for (final element in data.cursorDataList) {
-      updateLastCursorId(element);
-      await handleCursorData(element);
-    }
     if (data.lastCursorId.isNotEmpty) {
       updateLastCursorId(data.lastCursorId);
       handleCursorId(data.lastCursorId);
@@ -1672,52 +1650,16 @@ class FfiModel with ChangeNotifier {
     parent.target?.cursorModel.id = evt['id'];
   }
 
-  // `cursorDataList` doubles as the LRU order of the decoded cursors: the entry
-  // of the id in use is moved to the end, so it is never the one evicted.
   handleCursorId(Map<String, dynamic> evt) {
     cachedPeerData.lastCursorId = evt;
-    final list = cachedPeerData.cursorDataList;
-    final i = list.indexWhere((e) => e['id'] == evt['id']);
-    if (i >= 0) {
-      list.add(list.removeAt(i));
-    }
     parent.target?.cursorModel.updateCursorId(evt);
   }
 
   handleCursorData(Map<String, dynamic> evt) async {
-    final id = evt['id'];
-    final list = cachedPeerData.cursorDataList;
-    list.removeWhere((e) => e['id'] == id);
-    list.add(evt);
     // A replay ends by selecting this again, and a new shape is the shape in
     // use just as a cursor_id is.
-    cachedPeerData.lastCursorId = {'id': id};
-    _evictCursorData();
+    cachedPeerData.lastCursorId = {'id': evt['id']};
     await parent.target?.cursorModel.updateCursorData(evt);
-    // Session events are dispatched concurrently, so this shape may have been
-    // evicted while it was decoding, and the decode has just put it back. A
-    // resend of another shape can do that to the one the peer is showing, and
-    // nothing would ask for it again, so that one goes back in instead.
-    if (!list.any((e) => e['id'] == id)) {
-      if (parent.target?.cursorModel.id == id) {
-        list.add(evt);
-        _evictCursorData();
-      } else {
-        parent.target?.cursorModel.removeCursor(id);
-      }
-    }
-  }
-
-  _evictCursorData() {
-    final list = cachedPeerData.cursorDataList;
-    var chars = list.fold<int>(0, (n, e) => n + (e['colors'] as String).length);
-    while (list.length > 1 &&
-        (list.length > CachedPeerData.kMaxCursorDataCount ||
-            chars > CachedPeerData.kMaxCursorDataChars)) {
-      final dropped = list.removeAt(0);
-      chars -= (dropped['colors'] as String).length;
-      parent.target?.cursorModel.removeCursor(dropped['id']);
-    }
   }
 
   /// Handle the peer info synchronization event based on [evt].
@@ -3129,8 +3071,23 @@ class PredefinedCursor {
 }
 
 class CursorModel with ChangeNotifier {
+  // Decoded shapes kept per session. The peer sends only the id of a shape it
+  // has already sent, so an evicted shape is fetched again from the compressed
+  // copy the core keeps for the session (see requestCursorData); the shape in
+  // use is never the one evicted.
+  static const kMaxDecodedCursors = 64;
+  // In pixel bytes. The core lets through shapes up to 512 px a side, 1 MiB
+  // each, the size an enlarged Windows pointer reaches at 200% scaling, and
+  // its busy pointer is a ring of eighteen such shapes each sent once, which
+  // all have to stay decoded with the static pointers beside them or the ring
+  // decodes a frame on every turn. Ordinary cursors are a few kilobytes.
+  static const kMaxDecodedCursorBytes = 32 << 20;
+
   ui.Image? _image;
   final _images = <String, Tuple3<ui.Image, double, double>>{};
+  // The ids of `_images` in order of use, with their pixel bytes.
+  final _decoded = <String, int>{};
+  int _decodedBytes = 0;
   CursorData? _cache;
   final _cacheMap = <String, CursorData>{};
   final _cacheKeys = <String>{};
@@ -3240,6 +3197,8 @@ class CursorModel with ChangeNotifier {
 
   String get id => _id;
   set id(String id) => _id = id;
+  @visibleForTesting
+  Iterable<String> get decodedIds => _decoded.keys;
 
   bool get isPeerControlProtected =>
       DateTime.now().difference(_lastPeerMouse).inMilliseconds <
@@ -3551,6 +3510,8 @@ class CursorModel with ChangeNotifier {
   disposeImages() {
     _images.forEach((_, v) => v.item1.dispose());
     _images.clear();
+    _decoded.clear();
+    _decodedBytes = 0;
   }
 
   updateCursorData(Map<String, dynamic> evt) async {
@@ -3570,6 +3531,9 @@ class CursorModel with ChangeNotifier {
       if (await _updateCache(rgba, image, id, hotx, hoty, width, height)) {
         _images[id]?.item1.dispose();
         _images[id] = Tuple3(image, hotx, hoty);
+        _decodedBytes += rgba.length - (_decoded.remove(id) ?? 0);
+        _decoded[id] = rgba.length;
+        _evictDecoded();
       }
 
       // Update last cursor data.
@@ -3650,15 +3614,35 @@ class CursorModel with ChangeNotifier {
     }
   }
 
+  // Session events are dispatched concurrently, so a shape is counted here
+  // only once decoded, and the shape in use stays whatever else arrives:
+  // nothing would ask for it again.
+  _evictDecoded() {
+    for (final id in _decoded.keys.toList()) {
+      if (_decoded.length <= kMaxDecodedCursors &&
+          _decodedBytes <= kMaxDecodedCursorBytes) {
+        return;
+      }
+      if (id != _id) {
+        removeCursor(id);
+      }
+    }
+  }
+
   updateCursorId(Map<String, dynamic> evt) {
-    if (!_updateCurData()) {
+    if (_updateCurData()) {
+      final bytes = _decoded.remove(_id);
+      if (bytes != null) {
+        _decoded[_id] = bytes;
+      }
+    } else {
       debugPrint(
           'WARNING: updateCursorId $_id, cache is ${_cache == null ? "null" : "not null"}. without notifyListeners()');
       // Ask once: the shape comes back as a cursor_data event, and further
       // cursor_id events for it can be handled before that one is decoded. Ids
       // the peer never backs with a shape would pile up here, so start over at
       // the same count the shapes themselves are held to.
-      if (_requested.length >= CachedPeerData.kMaxCursorDataCount) {
+      if (_requested.length >= kMaxDecodedCursors) {
         _requested.clear();
       }
       if (_requested.add(_id)) {
@@ -3687,6 +3671,7 @@ class CursorModel with ChangeNotifier {
       }
       image.dispose();
     }
+    _decodedBytes -= _decoded.remove(id) ?? 0;
     _cacheMap.remove(id);
     // Left in place, the page would register the evicted raster natively again.
     if (_cache?.id == id) {

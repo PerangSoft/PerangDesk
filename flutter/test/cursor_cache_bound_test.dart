@@ -70,6 +70,9 @@ List<String> _ids(_FFI ffi) => ffi.ffiModel.cachedPeerData.cursorDataList
     .map((e) => e['id'] as String)
     .toList();
 
+Uint8List _rgba(int size) =>
+    Uint8List.fromList(List.filled(size * size * 4, 255));
+
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
   final channel = Platform.isWindows
@@ -307,6 +310,50 @@ void main() {
 
     _select(ffi, 0);
     expect(cursor.requested, ['0', '0']);
+  });
+
+  // The web client has no core to ask, so it archives the pixels itself.
+  test('a shape asked for again is decoded from the archive', () async {
+    final cursor = ffi.cursorModel as _Cursor;
+    await _feed(ffi, 0);
+    cursor.archiveCursor(_event(0), _rgba(_size));
+    for (var i = 1; i <= _max; i++) {
+      await _feed(ffi, i);
+    }
+    expect(_ids(ffi), isNot(contains('0')));
+
+    expect(cursor.resendArchivedCursor('9'), isNull);
+    await cursor.resendArchivedCursor('0');
+    _select(ffi, 0);
+    expect(cursor.cache?.id, '0');
+    expect(cursor.requested, isEmpty);
+  });
+
+  test('the archive drops the shape the peer left unused the longest', () {
+    final cursor = ffi.cursorModel;
+    final third = Uint8List(CursorModel.kMaxArchivedCursorBytes ~/ 3 + 1);
+    cursor.archiveCursor(_event(0), third);
+    cursor.archiveCursor(_event(1), third);
+    cursor.touchArchivedCursor('0');
+    cursor.archiveCursor(_event(2), third);
+    expect(cursor.archivedCursorIds, ['0', '2']);
+  });
+
+  test('an archived shape sent again is charged once', () {
+    final cursor = ffi.cursorModel;
+    final half = Uint8List(CursorModel.kMaxArchivedCursorBytes ~/ 2);
+    cursor.archiveCursor(_event(0), half);
+    cursor.archiveCursor(_event(0), half);
+    cursor.archiveCursor(_event(1), half);
+    expect(cursor.archivedCursorIds, ['0', '1']);
+  });
+
+  test('clearing the session empties the archive', () {
+    final cursor = ffi.cursorModel;
+    cursor.archiveCursor(_event(0), _rgba(_size));
+    cursor.clear();
+    expect(cursor.archivedCursorIds, isEmpty);
+    expect(cursor.resendArchivedCursor('0'), isNull);
   });
 
   test('evicting a cursor deletes every native registration of it', () async {

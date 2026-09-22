@@ -118,9 +118,10 @@ struct CursorArchive {
 
 #[cfg(any(feature = "flutter", test))]
 impl CursorArchive {
-    // A session's shapes are a few hundred bytes each, so this is out of reach of any honest
-    // peer. Past it the shapes the peer has left unused the longest go first: one it selects
-    // again after that just stays stale, which is what it did before this archive existed.
+    // A session's shapes are a few hundred bytes each, so it takes tens of thousands of them
+    // to get here. Past it the shapes the peer has left unused the longest go first: one it
+    // selects again after that just stays stale, which is what it did before this archive
+    // existed.
     const MAX_BYTES: usize = 16 << 20;
     // What a map slot and the CursorData around the pixels cost, so that a peer streaming
     // one-pixel shapes is held to the same budget as one streaming full-size ones.

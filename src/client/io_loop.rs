@@ -158,15 +158,22 @@ impl CursorArchive {
             self.bytes -= Self::cost(&old);
         }
         let cost = Self::cost(&cd);
-        while self.bytes + cost > Self::MAX_BYTES {
-            let oldest = self
+        if self.bytes + cost > Self::MAX_BYTES {
+            // One large shape can push out thousands of small ones, so they are ordered once
+            // rather than searched for one at a time.
+            let mut by_use: Vec<(u64, u64)> = self
                 .shapes
                 .iter()
-                .min_by_key(|(_, (_, used))| *used)
-                .map(|(id, _)| *id);
-            match oldest.and_then(|id| self.shapes.remove(&id)) {
-                Some((old, _)) => self.bytes -= Self::cost(&old),
-                None => break,
+                .map(|(id, (_, used))| (*used, *id))
+                .collect();
+            by_use.sort_unstable();
+            for (_, id) in by_use {
+                if self.bytes + cost <= Self::MAX_BYTES {
+                    break;
+                }
+                if let Some((old, _)) = self.shapes.remove(&id) {
+                    self.bytes -= Self::cost(&old);
+                }
             }
         }
         self.last_id = cd.id;
@@ -259,6 +266,28 @@ mod cursor_archive_tests {
         archive.insert(archived(3, CursorArchive::MAX_BYTES / 2));
         assert_eq!(ids(&archive), vec![1, 3]);
         assert_eq!(archive.last_id, 3, "the newest shape is the current one");
+    }
+
+    #[test]
+    fn a_shape_that_needs_several_evictions_drops_the_least_recently_used_ones() {
+        let mut archive = CursorArchive::default();
+        let eighth = CursorArchive::MAX_BYTES / 8 - CursorArchive::ENTRY_BYTES;
+        for id in 1..=8 {
+            archive.insert(archived(id, eighth));
+        }
+        archive.touch(1);
+        archive.touch(3);
+
+        archive.insert(archived(
+            9,
+            CursorArchive::MAX_BYTES / 2 - CursorArchive::ENTRY_BYTES,
+        ));
+        assert_eq!(
+            ids(&archive),
+            vec![1, 3, 7, 8, 9],
+            "the four shapes unused the longest made room"
+        );
+        assert_eq!(archive.bytes, CursorArchive::MAX_BYTES);
     }
 
     #[test]

@@ -189,6 +189,18 @@ class PlatformFFI {
     };
   }
 
+  // A cursor shape's pixels come as they are, like a frame's, not as text in
+  // an event.
+  void setCursorDataCallback(
+      void Function(String, int, int, int, int, Uint8List) fun) {
+    context["onCursorData"] = (String id, int hotx, int hoty, int width,
+        int height, Uint8List? rgba) {
+      if (rgba != null) {
+        fun(id, hotx, hoty, width, height, rgba);
+      }
+    };
+  }
+
   late final WebVideoFrameQueue<JSObject, ui.Image> _videoFrameQueue;
 
   // Zero-readback video path: the JS decoder hands decoded VideoFrames here

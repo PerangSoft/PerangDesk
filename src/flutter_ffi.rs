@@ -97,6 +97,17 @@ pub enum EventToUI {
     Event(String),
     Rgba(usize),
     Texture(usize, bool), // (display, gpu_texture)
+    // A cursor shape with its pixels as they are: as text in an event they were four times the
+    // size and cost the UI a parse of its own. The id is text because the peer's ids can exceed
+    // Dart's int.
+    Cursor {
+        id: String,
+        hotx: i32,
+        hoty: i32,
+        width: i32,
+        height: i32,
+        colors: Vec<u8>,
+    },
 }
 
 pub fn host_stop_system_key_propagate(_stopped: bool) {

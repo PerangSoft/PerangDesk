@@ -591,6 +591,24 @@ impl FlutterHandler {
         }
     }
 
+    fn push_cursor_to(&self, cd: CursorData, include: &[&SessionID]) {
+        let colors = cd.colors.to_vec();
+        for (sid, session) in self.session_handlers.read().unwrap().iter() {
+            if include.is_empty() || include.contains(&sid) {
+                if let Some(stream) = &session.event_stream {
+                    stream.add(EventToUI::Cursor {
+                        id: cd.id.to_string(),
+                        hotx: cd.hotx,
+                        hoty: cd.hoty,
+                        width: cd.width,
+                        height: cd.height,
+                        colors: colors.clone(),
+                    });
+                }
+            }
+        }
+    }
+
     pub(crate) fn close_event_stream(&self, session_id: SessionID) {
         // to-do: Make sure the following logic is correct.
         // No need to remove the display handler, because it will be removed when the connection is closed.
@@ -642,22 +660,7 @@ impl FlutterHandler {
 
 impl InvokeUiSession for FlutterHandler {
     fn set_cursor_data(&self, cd: CursorData) {
-        let colors = &cd.colors;
-        self.push_event(
-            "cursor_data",
-            &[
-                ("id", &cd.id.to_string()),
-                ("hotx", &cd.hotx.to_string()),
-                ("hoty", &cd.hoty.to_string()),
-                ("width", &cd.width.to_string()),
-                ("height", &cd.height.to_string()),
-                (
-                    "colors",
-                    &serde_json::ser::to_string(&colors).unwrap_or("".to_owned()),
-                ),
-            ],
-            &[],
-        );
+        self.push_cursor_to(cd, &[]);
     }
 
     fn set_cursor_id(&self, id: String) {
@@ -665,22 +668,7 @@ impl InvokeUiSession for FlutterHandler {
     }
 
     fn set_cursor_data_to(&self, session_id: &SessionID, cd: CursorData) {
-        let colors = &cd.colors;
-        self.push_event_to(
-            "cursor_data",
-            &[
-                ("id", &cd.id.to_string()),
-                ("hotx", &cd.hotx.to_string()),
-                ("hoty", &cd.hoty.to_string()),
-                ("width", &cd.width.to_string()),
-                ("height", &cd.height.to_string()),
-                (
-                    "colors",
-                    &serde_json::ser::to_string(&colors).unwrap_or("".to_owned()),
-                ),
-            ],
-            &[session_id],
-        );
+        self.push_cursor_to(cd, &[session_id]);
     }
 
     fn set_cursor_id_to(&self, session_id: &SessionID, id: String) {

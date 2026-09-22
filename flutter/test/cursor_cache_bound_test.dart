@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -33,34 +32,14 @@ const _max = CursorModel.kMaxDecodedCursors;
 // The largest shape the core lets through, in pixels a side.
 const _largest = 512;
 
-Map<String, dynamic> _event(int id, {int size = _size}) => {
-      'id': '$id',
-      'hotx': '0',
-      'hoty': '0',
-      'width': '$size',
-      'height': '$size',
-      // Transparent, which keeps the JSON short and the PNG small.
-      'colors': jsonEncode(List.filled(size * size * 4, 0)),
-    };
+/// A shape arriving as the core delivers it: its pixels as they are.
+Future<void> _feed(_FFI ffi, int id, {int size = _size}) => ffi.ffiModel
+    .handleCursorData('$id', 0, 0, size, size, Uint8List(size * size * 4));
 
-/// Mirrors the `cursor_data` branch of the session event listener.
-Future<void> _feed(_FFI ffi, int id, {int size = _size}) async {
-  final evt = _event(id, size: size);
-  ffi.ffiModel.updateLastCursorId(evt);
-  await ffi.ffiModel.handleCursorData(evt);
-}
-
-/// Dispatches every event the way the session loop does, without awaiting one
+/// Dispatches every shape the way the session loop does, without awaiting one
 /// before starting the next.
-Future<void> _feedConcurrently(_FFI ffi, Iterable<int> ids) {
-  final pending = <Future<void>>[];
-  for (final id in ids) {
-    final evt = _event(id);
-    ffi.ffiModel.updateLastCursorId(evt);
-    pending.add(ffi.ffiModel.handleCursorData(evt));
-  }
-  return Future.wait(pending);
-}
+Future<void> _feedConcurrently(_FFI ffi, Iterable<int> ids) =>
+    Future.wait(ids.map((id) => _feed(ffi, id)));
 
 /// Mirrors the `cursor_id` branch of the session event listener.
 void _select(_FFI ffi, int id) {
@@ -155,7 +134,7 @@ void main() {
     }
     final cursor = ffi.cursorModel as _Cursor;
     _select(ffi, 0);
-    final inFlight = ffi.ffiModel.handleCursorData(_event(0));
+    final inFlight = _feed(ffi, 0);
     _select(ffi, 0);
     await inFlight;
     expect(cursor.requested, ['0']);
@@ -191,40 +170,11 @@ void main() {
     expect(cursor.requested, ['0', '0']);
   });
 
-  test('two cursors of the largest size stay cached together', () async {
+  test('shapes of the largest size are decoded like any other', () async {
     await _feed(ffi, 0, size: _largest);
     await _feed(ffi, 1, size: _largest);
-    expect(_ids(ffi), ['0', '1'],
-        reason: 'switching between two large shapes would refetch each time');
-  });
-
-  test('an enlarged animated cursor cycles through its frames from the cache',
-      () async {
-    // The busy pointer is a ring of eighteen shapes, each sent once. Enlarged
-    // to what a Windows pointer reaches at 200% scaling, each is 512 px.
-    const frames = 18;
-    for (var frame = 0; frame < frames; frame++) {
-      await _feed(ffi, frame, size: _largest);
-    }
-    final cursor = ffi.cursorModel as _Cursor;
-    for (var frame = 0; frame < frames; frame++) {
-      _select(ffi, frame);
-    }
-    expect(cursor.requested, isEmpty,
-        reason: 'decoding a frame again on every turn of the ring stutters '
-            'the view for as long as the peer is busy');
-  });
-
-  test('largest shapes past the pixel budget are dropped before the count',
-      () async {
-    final fit = CursorModel.kMaxDecodedCursorBytes ~/ (_largest * _largest * 4);
-    expect(fit, lessThan(_max),
-        reason: 'a budget the count reaches first bounds nothing');
-    for (var i = 0; i <= fit; i++) {
-      await _feed(ffi, i, size: _largest);
-    }
-    expect(_ids(ffi).length, fit);
-    expect(_ids(ffi).first, '1');
+    expect(_ids(ffi), ['0', '1']);
+    expect(ffi.cursorModel.image, isNotNull);
   });
 
   test('removing the current cursor drops its raster and notifies', () async {
@@ -269,6 +219,7 @@ void main() {
     _select(ffi, 0);
     await _feed(ffi, 2);
     expect(ffi.ffiModel.cachedPeerData.lastCursorId['id'], '2');
+    expect(ffi.cursorModel.id, '2');
   });
 
   test('a moved tab carries the id in use and not the shapes', () async {

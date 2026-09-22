@@ -349,9 +349,6 @@ class FfiModel with ChangeNotifier {
       } else if (name == 'switch_display') {
         // switch display is kept for backward compatibility
         handleSwitchDisplay(evt, sessionId, peerId);
-      } else if (name == 'cursor_data') {
-        updateLastCursorId(evt);
-        await handleCursorData(evt);
       } else if (name == 'cursor_id') {
         updateLastCursorId(evt);
         handleCursorId(evt);
@@ -1655,11 +1652,14 @@ class FfiModel with ChangeNotifier {
     parent.target?.cursorModel.updateCursorId(evt);
   }
 
-  handleCursorData(Map<String, dynamic> evt) async {
+  handleCursorData(String id, int hotx, int hoty, int width, int height,
+      Uint8List colors) async {
     // A replay ends by selecting this again, and a new shape is the shape in
     // use just as a cursor_id is.
-    cachedPeerData.lastCursorId = {'id': evt['id']};
-    await parent.target?.cursorModel.updateCursorData(evt);
+    cachedPeerData.lastCursorId = {'id': id};
+    parent.target?.cursorModel.id = id;
+    await parent.target?.cursorModel
+        .updateCursorData(id, hotx, hoty, width, height, colors);
   }
 
   /// Handle the peer info synchronization event based on [evt].
@@ -3074,20 +3074,15 @@ class CursorModel with ChangeNotifier {
   // Decoded shapes kept per session. The peer sends only the id of a shape it
   // has already sent, so an evicted shape is fetched again from the compressed
   // copy the core keeps for the session (see requestCursorData); the shape in
-  // use is never the one evicted.
+  // use is never the one evicted. An enlarged Windows pointer's animations
+  // are rings of eighteen shapes, so this keeps both of them decoded with the
+  // static pointers beside them.
   static const kMaxDecodedCursors = 64;
-  // In pixel bytes. The core lets through shapes up to 512 px a side, 1 MiB
-  // each, the size an enlarged Windows pointer reaches at 200% scaling, and
-  // its busy pointer is a ring of eighteen such shapes each sent once, which
-  // all have to stay decoded with the static pointers beside them or the ring
-  // decodes a frame on every turn. Ordinary cursors are a few kilobytes.
-  static const kMaxDecodedCursorBytes = 32 << 20;
 
   ui.Image? _image;
   final _images = <String, Tuple3<ui.Image, double, double>>{};
-  // The ids of `_images` in order of use, with their pixel bytes.
-  final _decoded = <String, int>{};
-  int _decodedBytes = 0;
+  // The ids of `_images` in order of use.
+  final _decoded = <String>{};
   CursorData? _cache;
   final _cacheMap = <String, CursorData>{};
   final _cacheKeys = <String>{};
@@ -3198,7 +3193,7 @@ class CursorModel with ChangeNotifier {
   String get id => _id;
   set id(String id) => _id = id;
   @visibleForTesting
-  Iterable<String> get decodedIds => _decoded.keys;
+  Iterable<String> get decodedIds => _decoded;
 
   bool get isPeerControlProtected =>
       DateTime.now().difference(_lastPeerMouse).inMilliseconds <
@@ -3511,28 +3506,22 @@ class CursorModel with ChangeNotifier {
     _images.forEach((_, v) => v.item1.dispose());
     _images.clear();
     _decoded.clear();
-    _decodedBytes = 0;
   }
 
-  updateCursorData(Map<String, dynamic> evt) async {
+  updateCursorData(String id, int hotx, int hoty, int width, int height,
+      Uint8List rgba) async {
     try {
-      final id = evt['id'];
-      final hotx = double.parse(evt['hotx']);
-      final hoty = double.parse(evt['hoty']);
-      final width = int.parse(evt['width']);
-      final height = int.parse(evt['height']);
-      List<dynamic> colors = json.decode(evt['colors']);
-      final rgba = Uint8List.fromList(colors.map((s) => s as int).toList());
       final image = await img.decodeImageFromPixels(
           rgba, width, height, ui.PixelFormat.rgba8888);
       if (image == null) {
         return;
       }
-      if (await _updateCache(rgba, image, id, hotx, hoty, width, height)) {
+      if (await _updateCache(
+          rgba, image, id, hotx.toDouble(), hoty.toDouble(), width, height)) {
         _images[id]?.item1.dispose();
-        _images[id] = Tuple3(image, hotx, hoty);
-        _decodedBytes += rgba.length - (_decoded.remove(id) ?? 0);
-        _decoded[id] = rgba.length;
+        _images[id] = Tuple3(image, hotx.toDouble(), hoty.toDouble());
+        _decoded.remove(id);
+        _decoded.add(id);
         _evictDecoded();
       }
 
@@ -3542,7 +3531,7 @@ class CursorModel with ChangeNotifier {
     } finally {
       // Decoded or not, the shape can be asked for again, and only now: more
       // cursor_id events for it can be handled while the decode is running.
-      _requested.remove(evt['id']);
+      _requested.remove(id);
     }
   }
 
@@ -3618,9 +3607,8 @@ class CursorModel with ChangeNotifier {
   // only once decoded, and the shape in use stays whatever else arrives:
   // nothing would ask for it again.
   _evictDecoded() {
-    for (final id in _decoded.keys.toList()) {
-      if (_decoded.length <= kMaxDecodedCursors &&
-          _decodedBytes <= kMaxDecodedCursorBytes) {
+    for (final id in _decoded.toList()) {
+      if (_decoded.length <= kMaxDecodedCursors) {
         return;
       }
       if (id != _id) {
@@ -3631,9 +3619,8 @@ class CursorModel with ChangeNotifier {
 
   updateCursorId(Map<String, dynamic> evt) {
     if (_updateCurData()) {
-      final bytes = _decoded.remove(_id);
-      if (bytes != null) {
-        _decoded[_id] = bytes;
+      if (_decoded.remove(_id)) {
+        _decoded.add(_id);
       }
     } else {
       debugPrint(
@@ -3671,7 +3658,7 @@ class CursorModel with ChangeNotifier {
       }
       image.dispose();
     }
-    _decodedBytes -= _decoded.remove(id) ?? 0;
+    _decoded.remove(id);
     _cacheMap.remove(id);
     // Left in place, the page would register the evicted raster natively again.
     if (_cache?.id == id) {
@@ -4095,6 +4082,7 @@ class FFI {
         onEvent2UIRgba();
         imageModel.onRgba(display, data);
       });
+      platformFFI.setCursorDataCallback(ffiModel.handleCursorData);
       platformFFI.setVideoFrameCallback((int display, ui.Image image,
           bool Function() isCurrentSession) async {
         if (!isCurrentSession()) {
@@ -4173,6 +4161,9 @@ class FFI {
           } else {
             platformFFI.nextRgba(sessionId, display);
           }
+        } else if (message is EventToUI_Cursor) {
+          await ffiModel.handleCursorData(message.id, message.hotx,
+              message.hoty, message.width, message.height, message.colors);
         } else if (message is EventToUI_Texture) {
           final display = message.field0;
           final gpuTexture = message.field1;

@@ -61,9 +61,10 @@ class CachedPeerData {
   // copy the Rust side keeps (see CursorModel.requestCursorData).
   static const kMaxCursorDataCount = 64;
   // A shape's pixels arrive as a JSON array of integers, so the largest cursor
-  // the peer may send is about four million characters on its own. Ordinary
+  // the peer may send is about four million characters on its own, and a peer
+  // with its system cursors enlarged switches between two of those. Ordinary
   // cursors are a few thousand, which leaves this a bound on outsized ones.
-  static const kMaxCursorDataChars = 4 << 20;
+  static const kMaxCursorDataChars = 16 << 20;
 
   Map<String, dynamic> updatePrivacyMode = {};
   Map<String, dynamic> peerInfo = {};

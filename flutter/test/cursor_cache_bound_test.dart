@@ -180,11 +180,20 @@ void main() {
     expect(cursor.requested, ['0', '0']);
   });
 
-  test('cursors far past the byte budget are dropped before the count',
-      () async {
+  test('two cursors of the largest size stay cached together', () async {
     await _feed(ffi, 0, size: 512);
     await _feed(ffi, 1, size: 512);
-    expect(_ids(ffi), ['1']);
+    expect(_ids(ffi), ['0', '1'],
+        reason: 'switching between two large shapes would refetch each time');
+  });
+
+  test('cursors far past the byte budget are dropped before the count',
+      () async {
+    for (var i = 0; i < 5; i++) {
+      await _feed(ffi, i, size: 512);
+    }
+    expect(_ids(ffi).length, lessThan(5));
+    expect(_ids(ffi).last, '4');
   });
 
   test('removing the current cursor drops its raster and notifies', () async {

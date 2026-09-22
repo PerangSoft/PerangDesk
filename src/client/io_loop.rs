@@ -108,7 +108,9 @@ pub struct Remote<T: InvokeUiSession> {
 #[cfg(any(feature = "flutter", test))]
 #[derive(Default)]
 struct CursorArchive {
-    shapes: HashMap<u64, CursorData>,
+    // Each shape with the tick at which the peer last sent or selected it.
+    shapes: HashMap<u64, (CursorData, u64)>,
+    tick: u64,
     bytes: usize,
     // What the peer last said it is showing, which a resend must not change.
     last_id: u64,
@@ -117,9 +119,8 @@ struct CursorArchive {
 #[cfg(any(feature = "flutter", test))]
 impl CursorArchive {
     // A session's shapes are a few hundred bytes each, so this is out of reach of any honest
-    // peer. Past it the map is dropped whole, as the server does with its own cursor cache: a
-    // shape the peer never sends again then just stays stale, which is what it did before this
-    // archive existed.
+    // peer. Past it the shapes the peer has left unused the longest go first: one it selects
+    // again after that just stays stale, which is what it did before this archive existed.
     const MAX_BYTES: usize = 16 << 20;
     // What a map slot and the CursorData around the pixels cost, so that a peer streaming
     // one-pixel shapes is held to the same budget as one streaming full-size ones.
@@ -139,22 +140,38 @@ impl CursorArchive {
         }
     }
 
+    fn cost(cd: &CursorData) -> usize {
+        cd.colors.len() + Self::ENTRY_BYTES
+    }
+
+    fn touch(&mut self, id: u64) {
+        self.last_id = id;
+        self.tick += 1;
+        if let Some((_, used)) = self.shapes.get_mut(&id) {
+            *used = self.tick;
+        }
+    }
+
     fn insert(&mut self, cd: CursorData) {
-        let cost = cd.colors.len() + Self::ENTRY_BYTES;
-        let replaced = self
-            .shapes
-            .get(&cd.id)
-            .map_or(0, |old| old.colors.len() + Self::ENTRY_BYTES);
-        if self.bytes - replaced + cost > Self::MAX_BYTES {
-            // A new map rather than clear(), so the buckets go too.
-            self.shapes = Default::default();
-            self.bytes = 0;
-        } else {
-            self.bytes -= replaced;
+        if let Some((old, _)) = self.shapes.remove(&cd.id) {
+            self.bytes -= Self::cost(&old);
+        }
+        let cost = Self::cost(&cd);
+        while self.bytes + cost > Self::MAX_BYTES {
+            let oldest = self
+                .shapes
+                .iter()
+                .min_by_key(|(_, (_, used))| *used)
+                .map(|(id, _)| *id);
+            match oldest.and_then(|id| self.shapes.remove(&id)) {
+                Some((old, _)) => self.bytes -= Self::cost(&old),
+                None => break,
+            }
         }
         self.last_id = cd.id;
+        self.tick += 1;
         self.bytes += cost;
-        self.shapes.insert(cd.id, cd);
+        self.shapes.insert(cd.id, (cd, self.tick));
     }
 }
 
@@ -206,15 +223,41 @@ mod cursor_archive_tests {
         );
     }
 
+    fn ids(archive: &CursorArchive) -> Vec<u64> {
+        let mut ids: Vec<u64> = archive.shapes.keys().copied().collect();
+        ids.sort();
+        ids
+    }
+
     #[test]
-    fn a_cursor_archive_past_its_budget_starts_over() {
+    fn a_cursor_archive_past_its_budget_drops_the_least_recently_used() {
         let mut archive = CursorArchive::default();
         archive.insert(archived(1, CursorArchive::MAX_BYTES / 2));
-        archive.insert(archived(2, 1));
-        assert_eq!(archive.shapes.len(), 2, "dropped while still within budget");
+        archive.insert(archived(2, CursorArchive::MAX_BYTES / 4));
+        assert_eq!(
+            ids(&archive),
+            vec![1, 2],
+            "dropped while still within budget"
+        );
 
         archive.insert(archived(3, CursorArchive::MAX_BYTES / 2));
-        assert_eq!(archive.shapes.keys().collect::<Vec<_>>(), vec![&3]);
+        assert_eq!(
+            ids(&archive),
+            vec![2, 3],
+            "the oldest shape alone made room"
+        );
+    }
+
+    #[test]
+    fn a_shape_the_peer_selected_again_is_kept_over_an_older_one() {
+        let mut archive = CursorArchive::default();
+        archive.insert(archived(1, CursorArchive::MAX_BYTES / 2 - 4096));
+        archive.insert(archived(2, CursorArchive::MAX_BYTES / 4));
+        archive.touch(1);
+
+        archive.insert(archived(3, CursorArchive::MAX_BYTES / 2));
+        assert_eq!(ids(&archive), vec![1, 3]);
+        assert_eq!(archive.last_id, 3, "the newest shape is the current one");
     }
 
     #[test]
@@ -792,7 +835,7 @@ impl<T: InvokeUiSession> Remote<T> {
     fn resend_cursor_data(&self, session_id: SessionID, id: u64) {
         match self.cursor_archive.shapes.get(&id) {
             None => log::warn!("Cursor {id} was asked for after the archive dropped it"),
-            Some(cd) => match decode_cursor_data(cd.clone()) {
+            Some((cd, _)) => match decode_cursor_data(cd.clone()) {
                 Ok(cd) => {
                     self.handler.set_cursor_data_to(&session_id, cd);
                     // A resend arrives as an ordinary cursor_data event, which would otherwise
@@ -1726,9 +1769,7 @@ impl<T: InvokeUiSession> Remote<T> {
                 }
                 Some(message::Union::CursorId(id)) => {
                     #[cfg(feature = "flutter")]
-                    {
-                        self.cursor_archive.last_id = id;
-                    }
+                    self.cursor_archive.touch(id);
                     self.handler.set_cursor_id(id.to_string());
                 }
                 Some(message::Union::CursorPosition(cp)) => {

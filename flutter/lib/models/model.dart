@@ -65,7 +65,7 @@ class CachedPeerData {
   // when opaque. An enlarged Windows pointer at 200% scaling is that size, and
   // its busy pointer is a ring of eighteen such shapes each sent once, which
   // all have to stay decoded with the static pointers beside them or the ring
-  // decodes a frame on every turn. Thirty-two of the largest do that with room
+  // decodes a frame on every turn. Thirty-one of the largest do that with room
   // for the second animated pointer, whose ring is mostly transparent, while
   // still holding a session to half of what the count alone would let it keep.
   // Ordinary cursors are a few thousand characters.

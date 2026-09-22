@@ -30,6 +30,9 @@ class _FFI extends Fake implements FFI {
 
 const _size = 8;
 const _max = CachedPeerData.kMaxCursorDataCount;
+// The core rejects shapes over 512 px a side, and that many opaque pixels as
+// JSON is four characters a byte plus the closing bracket.
+const _largest = (4 << 20) + 1;
 
 /// A shape of [size] pixels a side whose colors take at least [chars]
 /// characters, as a large shape's do: JSON ignores the padding, so the decode
@@ -226,11 +229,10 @@ void main() {
   test('an enlarged animated cursor cycles through its frames from the cache',
       () async {
     // The busy pointer is a ring of eighteen shapes, each sent once. Enlarged
-    // to what a Windows pointer reaches at 200% scaling, each is 512 px and
-    // about four million characters when opaque.
+    // to what a Windows pointer reaches at 200% scaling, each is 512 px.
     const frames = 18;
     for (var frame = 0; frame < frames; frame++) {
-      await _feed(ffi, frame, chars: 4 << 20);
+      await _feed(ffi, frame, chars: _largest);
     }
     final cursor = ffi.cursorModel as _Cursor;
     for (var frame = 0; frame < frames; frame++) {
@@ -243,13 +245,11 @@ void main() {
 
   test('largest shapes past the character budget are dropped before the count',
       () async {
-    // The core rejects shapes over 512 px a side, so this is what one costs.
-    const largest = 4 << 20;
-    final fit = CachedPeerData.kMaxCursorDataChars ~/ largest;
+    final fit = CachedPeerData.kMaxCursorDataChars ~/ _largest;
     expect(fit, lessThan(_max),
         reason: 'a budget the count reaches first bounds nothing');
     for (var i = 0; i <= fit; i++) {
-      await _feed(ffi, i, chars: largest);
+      await _feed(ffi, i, chars: _largest);
     }
     expect(_ids(ffi).length, fit);
     expect(_ids(ffi).first, '1');

@@ -60,11 +60,13 @@ class CachedPeerData {
   // has already sent, so an evicted shape is fetched again from the compressed
   // copy the core keeps (see CursorModel.requestCursorData).
   static const kMaxCursorDataCount = 64;
-  // A shape's pixels arrive as a JSON array of integers, so the largest cursor
-  // the peer may send is about four million characters on its own, and a peer
-  // with its system cursors enlarged switches between two of those. Ordinary
-  // cursors are a few thousand, which leaves this a bound on outsized ones.
-  static const kMaxCursorDataChars = 16 << 20;
+  // A shape's pixels arrive as a JSON array of integers, so a 512 px shape, the
+  // size an enlarged Windows pointer reaches at 200% scaling, is about four
+  // million characters, and its busy pointer is a ring of eighteen such shapes
+  // each sent once. Every shape in a set the count admits has to stay decoded,
+  // or the ring decodes a frame on every turn, so this only bounds larger
+  // shapes still. Ordinary cursors are a few thousand characters.
+  static const kMaxCursorDataChars = kMaxCursorDataCount * (4 << 20);
 
   Map<String, dynamic> updatePrivacyMode = {};
   Map<String, dynamic> peerInfo = {};

@@ -31,18 +31,27 @@ class _FFI extends Fake implements FFI {
 const _size = 8;
 const _max = CachedPeerData.kMaxCursorDataCount;
 
-Map<String, dynamic> _event(int id, {int size = _size}) => {
-      'id': '$id',
-      'hotx': '0',
-      'hoty': '0',
-      'width': '$size',
-      'height': '$size',
-      'colors': jsonEncode(List.filled(size * size * 4, 255)),
-    };
+/// A shape of [size] pixels a side whose colors take at least [chars]
+/// characters, as a large shape's do: JSON ignores the padding, so the decode
+/// stays as cheap as the pixels.
+Map<String, dynamic> _event(int id, {int size = _size, int chars = 0}) {
+  var colors = jsonEncode(List.filled(size * size * 4, 255));
+  if (colors.length < chars) {
+    colors = '[${' ' * (chars - colors.length)}${colors.substring(1)}';
+  }
+  return {
+    'id': '$id',
+    'hotx': '0',
+    'hoty': '0',
+    'width': '$size',
+    'height': '$size',
+    'colors': colors,
+  };
+}
 
 /// Mirrors the `cursor_data` branch of the session event listener.
-Future<void> _feed(_FFI ffi, int id, {int size = _size}) async {
-  final evt = _event(id, size: size);
+Future<void> _feed(_FFI ffi, int id, {int size = _size, int chars = 0}) async {
+  final evt = _event(id, size: size, chars: chars);
   ffi.ffiModel.updateLastCursorId(evt);
   await ffi.ffiModel.handleCursorData(evt);
 }
@@ -171,8 +180,8 @@ void main() {
 
   test('resends arriving in a burst keep the shape the peer settled on',
       () async {
-    // Five largest shapes never fit the budget together, so their resends
-    // evict the first while it is still decoding.
+    // Five shapes of over a quarter of the budget never fit it together, so
+    // their resends evict the first while it is still decoding.
     final cursor = ffi.cursorModel as _Cursor;
     for (var id = 0; id < 5; id++) {
       _select(ffi, id);
@@ -181,8 +190,9 @@ void main() {
     expect(cursor.requested, ['0', '1', '2', '3', '4']);
 
     final pending = <Future<void>>[];
+    final quarter = CachedPeerData.kMaxCursorDataChars ~/ 4 + 1;
     for (var id = 0; id < 5; id++) {
-      pending.add(_feed(ffi, id, size: 512));
+      pending.add(_feed(ffi, id, chars: quarter));
     }
     // The resend of the last shape is followed by the id the peer is on.
     _select(ffi, 0);
@@ -213,13 +223,30 @@ void main() {
         reason: 'switching between two large shapes would refetch each time');
   });
 
-  test('cursors far past the byte budget are dropped before the count',
+  test('an enlarged animated cursor cycles through its frames from the cache',
       () async {
-    for (var i = 0; i < 5; i++) {
-      await _feed(ffi, i, size: 512);
+    // The busy pointer is a ring of eighteen shapes, each sent once. Enlarged
+    // to what a Windows pointer reaches at 200% scaling, each is 512 px and
+    // about four million characters when opaque.
+    const frames = 18;
+    for (var frame = 0; frame < frames; frame++) {
+      await _feed(ffi, frame, chars: 4 << 20);
     }
-    expect(_ids(ffi).length, lessThan(5));
-    expect(_ids(ffi).last, '4');
+    final cursor = ffi.cursorModel as _Cursor;
+    for (var frame = 0; frame < frames; frame++) {
+      _select(ffi, frame);
+    }
+    expect(cursor.requested, isEmpty,
+        reason: 'decoding a frame again on every turn of the ring stutters '
+            'the view for as long as the peer is busy');
+  });
+
+  test('cursors past the character budget are dropped before the count',
+      () async {
+    final half = CachedPeerData.kMaxCursorDataChars ~/ 2 + 1;
+    await _feed(ffi, 0, chars: half);
+    await _feed(ffi, 1, chars: half);
+    expect(_ids(ffi), ['1']);
   });
 
   test('removing the current cursor drops its raster and notifies', () async {

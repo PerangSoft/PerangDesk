@@ -169,6 +169,32 @@ void main() {
     expect(cursor.requested, ['0'], reason: 'the late decode was kept');
   });
 
+  test('resends arriving in a burst keep the shape the peer settled on',
+      () async {
+    // Five largest shapes never fit the budget together, so their resends
+    // evict the first while it is still decoding.
+    final cursor = ffi.cursorModel as _Cursor;
+    for (var id = 0; id < 5; id++) {
+      _select(ffi, id);
+    }
+    _select(ffi, 0);
+    expect(cursor.requested, ['0', '1', '2', '3', '4']);
+
+    final pending = <Future<void>>[];
+    for (var id = 0; id < 5; id++) {
+      pending.add(_feed(ffi, id, size: 512));
+    }
+    // The resend of the last shape is followed by the id the peer is on.
+    _select(ffi, 0);
+    expect(_ids(ffi), isNot(contains('0')));
+    await Future.wait(pending);
+
+    expect(cursor.cache?.id, '0');
+    expect(cursor.image, isNotNull);
+    expect(_ids(ffi), contains('0'));
+    expect(cursor.requested.length, 5, reason: 'nothing left to ask for');
+  });
+
   test('a session clear forgets the requests it was waiting on', () async {
     for (var i = 0; i <= _max; i++) {
       await _feed(ffi, i);

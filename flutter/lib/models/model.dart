@@ -1689,21 +1689,32 @@ class FfiModel with ChangeNotifier {
     cachedPeerData.lastCursorId = {'id': id};
     // The web core has no compressed copy to fetch an evicted shape from.
     if (!isWeb) {
-      var chars =
-          list.fold<int>(0, (n, e) => n + (e['colors'] as String).length);
-      while (list.length > 1 &&
-          (list.length > CachedPeerData.kMaxCursorDataCount ||
-              chars > CachedPeerData.kMaxCursorDataChars)) {
-        final dropped = list.removeAt(0);
-        chars -= (dropped['colors'] as String).length;
-        parent.target?.cursorModel.removeCursor(dropped['id']);
-      }
+      _evictCursorData();
     }
     await parent.target?.cursorModel.updateCursorData(evt);
     // Session events are dispatched concurrently, so this shape may have been
-    // evicted while it was decoding; the decode has just put it back.
+    // evicted while it was decoding, and the decode has just put it back. A
+    // resend of another shape can do that to the one the peer is showing, and
+    // nothing would ask for it again, so that one goes back in instead.
     if (!isWeb && !list.any((e) => e['id'] == id)) {
-      parent.target?.cursorModel.removeCursor(id);
+      if (parent.target?.cursorModel.id == id) {
+        list.add(evt);
+        _evictCursorData();
+      } else {
+        parent.target?.cursorModel.removeCursor(id);
+      }
+    }
+  }
+
+  _evictCursorData() {
+    final list = cachedPeerData.cursorDataList;
+    var chars = list.fold<int>(0, (n, e) => n + (e['colors'] as String).length);
+    while (list.length > 1 &&
+        (list.length > CachedPeerData.kMaxCursorDataCount ||
+            chars > CachedPeerData.kMaxCursorDataChars)) {
+      final dropped = list.removeAt(0);
+      chars -= (dropped['colors'] as String).length;
+      parent.target?.cursorModel.removeCursor(dropped['id']);
     }
   }
 
@@ -3225,6 +3236,7 @@ class CursorModel with ChangeNotifier {
   double get hotx => _hotx;
   double get hoty => _hoty;
 
+  String get id => _id;
   set id(String id) => _id = id;
 
   bool get isPeerControlProtected =>
